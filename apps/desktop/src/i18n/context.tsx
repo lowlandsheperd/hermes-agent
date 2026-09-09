@@ -1,6 +1,7 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 
-import { getHermesConfigRecord, type HermesConfigRecord, saveHermesConfig } from '@/hermes'
+import type { HermesConfigRecord } from '@/hermes'
+import { persistString, storedString } from '@/lib/storage'
 
 import { TRANSLATIONS } from './catalog'
 import { DEFAULT_LOCALE, localeConfigValue, normalizeLocale } from './languages'
@@ -14,20 +15,12 @@ export interface I18nConfigClient {
   saveConfig: (config: HermesConfigRecord) => Promise<{ ok: boolean }>
 }
 
+const CLIENT_LANGUAGE_KEY = 'hermes.desktop.language'
 const defaultConfigClient: I18nConfigClient = {
-  getConfig: () => {
-    if (typeof window === 'undefined' || !window.hermesDesktop?.api) {
-      return Promise.resolve({})
-    }
-
-    return getHermesConfigRecord()
-  },
-  saveConfig: config => {
-    if (typeof window === 'undefined' || !window.hermesDesktop?.api) {
-      return Promise.resolve({ ok: true })
-    }
-
-    return saveHermesConfig(config)
+  getConfig: async () => ({ display: { language: storedString(CLIENT_LANGUAGE_KEY) || DEFAULT_LOCALE } }),
+  saveConfig: async config => {
+    persistString(CLIENT_LANGUAGE_KEY, normalizeLocale(getConfigDisplayLanguage(config)))
+    return { ok: true }
   }
 }
 

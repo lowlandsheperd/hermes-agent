@@ -7,37 +7,24 @@ import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
 import { getGlobalModelOptions } from '@/hermes'
 import { useI18n } from '@/i18n'
-import { Check, ChevronDown, ChevronLeft, KeyRound, Loader2 } from '@/lib/icons'
+import { Check, ChevronLeft, KeyRound, Loader2 } from '@/lib/icons'
 import { isProviderSetupErrorMessage } from '@/lib/provider-setup-errors'
 import { cn } from '@/lib/utils'
 import { $desktopBoot, type DesktopBootState } from '@/store/boot'
-import { $localModelsEnabled } from '@/store/local-models-flag'
 import {
   $desktopOnboarding,
-  clearPendingProviderOAuth,
   closeManualOnboarding,
   confirmOnboardingModel,
   DEFAULT_MANUAL_ONBOARDING_REASON,
   DEFAULT_ONBOARDING_REASON,
   dismissFirstRunOnboarding,
   type OnboardingContext,
-  peekPendingProviderOAuth,
   refreshOnboarding,
-  saveOnboardingApiKey,
-  setOnboardingMode,
-  startProviderOAuth
+  saveOnboardingApiKey
 } from '@/store/onboarding'
-import type { ModelOptionProvider, OAuthProvider } from '@/types/hermes'
+import type { ModelOptionProvider } from '@/types/hermes'
 
-import { DocsLink, FlowPanel, Status } from './flow'
-import {
-  FeaturedProviderRow,
-  FireworksProviderRow,
-  LocalModelsProviderRow,
-  OpenRouterProviderRow,
-  ProviderRow,
-  sortProviders
-} from './providers'
+import { DocsLink, FlowPanel } from './flow'
 
 export {
   FeaturedProviderRow,
@@ -73,41 +60,11 @@ export interface ApiKeyOption {
 // Nous Portal OAuth), ahead of OpenRouter and the rest of the key catalog.
 const API_KEY_OPTIONS: ApiKeyOption[] = [
   {
-    id: 'fireworks',
-    name: 'Fireworks AI',
-    envKey: 'FIREWORKS_API_KEY',
-    docsUrl: 'https://app.fireworks.ai/settings/users/api-keys'
-  },
-  {
-    id: 'openrouter',
-    name: 'OpenRouter',
-    envKey: 'OPENROUTER_API_KEY',
-    docsUrl: 'https://openrouter.ai/keys'
-  },
-  {
-    id: 'openai',
-    name: 'OpenAI',
-    envKey: 'OPENAI_API_KEY',
-    docsUrl: 'https://platform.openai.com/api-keys'
-  },
-  {
-    id: 'gemini',
-    name: 'Google Gemini',
-    envKey: 'GEMINI_API_KEY',
-    docsUrl: 'https://aistudio.google.com/app/apikey'
-  },
-  {
-    id: 'xai',
-    name: 'xAI Grok',
-    envKey: 'XAI_API_KEY',
-    docsUrl: 'https://console.x.ai/'
-  },
-  {
-    id: 'local',
-    name: 'Local / custom endpoint',
+    id: 'custom',
+    name: 'Custom endpoint',
     envKey: 'OPENAI_BASE_URL',
-    docsUrl: 'https://github.com/NousResearch/hermes-agent#bring-your-own-endpoint',
-    placeholder: 'http://127.0.0.1:8000/v1'
+    docsUrl: '',
+    placeholder: 'https://api.example.com/v1'
   }
 ]
 
@@ -236,36 +193,6 @@ export function DesktopOnboardingOverlay({
       void refreshOnboarding(ctx)
     }
   }, [ctx, enabled, onboarding.requested])
-
-  // When the Providers settings page asked to connect a specific provider, the
-  // store stashed its id. Once the provider list has loaded and we're back at
-  // an idle picker, launch that exact OAuth flow so the user lands directly in
-  // sign-in instead of the picker they just came from.
-  useEffect(() => {
-    if (!onboarding.manual || onboarding.providers === null || onboarding.flow.status !== 'idle') {
-      return
-    }
-
-    const pendingId = peekPendingProviderOAuth()
-
-    if (!pendingId) {
-      return
-    }
-
-    const provider = onboarding.providers.find(p => p.id === pendingId)
-
-    if (provider) {
-      // Only clear once we've committed to launching it, so a failed/empty
-      // provider fetch doesn't silently drop the hand-off.
-      clearPendingProviderOAuth()
-      void startProviderOAuth(provider, ctx)
-    } else if (onboarding.providers.length > 0) {
-      // The list loaded but the id isn't a real provider — drop the stale
-      // hand-off. An empty list means the fetch isn't ready yet, so keep it
-      // and let a later refresh retry.
-      clearPendingProviderOAuth()
-    }
-  }, [ctx, onboarding.flow.status, onboarding.manual, onboarding.providers])
 
   // Mount from frame 1 so we replace the boot overlay seamlessly. The
   // configured field stays null until the runtime check resolves; only then
@@ -433,114 +360,29 @@ const persistShowAll = (value: boolean) => {
 
 export function Picker({ ctx }: { ctx: OnboardingContext }) {
   const { t } = useI18n()
-  const { localEndpoint, manual, mode, providers } = useStore($desktopOnboarding)
-  const [showAll, setShowAll] = useState(readShowAll)
-  // Which key-form option to preselect when we flip to 'apikey' mode. The
-  // OpenRouter row selects its key; the generic link lands on the first option.
-  const [apiKeyInitialEnv, setApiKeyInitialEnv] = useState<string | undefined>(undefined)
-
-  const openKeyForm = (envKey?: string) => {
-    setApiKeyInitialEnv(envKey)
-    setOnboardingMode('apikey')
-  }
-
-  const ordered = useMemo(() => (providers ? sortProviders(providers) : []), [providers])
-  const hasOauth = ordered.length > 0
-  const apiKeyOptions = useApiKeyCatalog()
-
-  // localEndpoint forces the key form regardless of `mode` (which a manual
-  // provider refresh may flip back to 'oauth'); it preselects the local option
-  // and hides the "back to sign in" link since the user came specifically to
-  // configure a custom endpoint.
-  if (localEndpoint || mode === 'apikey' || !hasOauth) {
-    return (
-      <div className="grid gap-3">
-        <ApiKeyForm
-          canGoBack={hasOauth && !localEndpoint}
-          initialEnvKey={localEndpoint ? 'OPENAI_BASE_URL' : apiKeyInitialEnv}
-          onBack={() => setOnboardingMode('oauth')}
-          onSave={(envKey, value, name, apiKey) => saveOnboardingApiKey(envKey, value, name, ctx, apiKey)}
-          options={apiKeyOptions}
-        />
-        {manual ? null : (
-          <div className="flex justify-center pt-1">
-            <ChooseLaterLink />
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  if (providers === null) {
-    return <Status>{t.onboarding.lookingUpProviders}</Status>
-  }
-
-  const select = (p: OAuthProvider) => void startProviderOAuth(p, ctx)
-  const featured = ordered.find(p => p.id === FEATURED_ID) ?? null
-  const rest = featured ? ordered.filter(p => p.id !== FEATURED_ID) : ordered
-  // Collapse the secondary providers behind a disclosure whenever Nous Portal
-  // is present to anchor the choice — otherwise show the full list. The
-  // Fireworks/OpenRouter key rows always live behind the disclosure, so the
-  // toggle is warranted even when there are no other OAuth providers.
-  const collapsible = Boolean(featured)
-  const showRest = !collapsible || showAll
-
-  // "Run models locally" leaves the picker for Settings -> Providers ->
-  // Local Models, where install/download live. First-run: persist the skip
-  // (same contract as ChooseLaterLink) so the blocking overlay never
-  // re-nags; manual mode just closes. window.location keeps this picker
-  // router-independent (it renders outside the route tree on first run).
-  const openLocalModels = () => {
-    if (manual) {
-      closeManualOnboarding()
-    } else {
-      dismissFirstRunOnboarding()
-    }
-
-    window.location.hash = '#/settings?tab=providers&pview=local'
-  }
-
+  const { manual } = useStore($desktopOnboarding)
   return (
-    <div className="grid gap-2">
-      <div className="grid max-h-[60dvh] gap-2 overflow-y-auto p-1">
-        {featured ? <FeaturedProviderRow onSelect={select} provider={featured} /> : null}
-        {/* The no-account path: everything runs on this machine. Shipped
-            behind the --local launch flag. (Fireworks moved into the
-            expanded list on main.) */}
-        {$localModelsEnabled.get() ? <LocalModelsProviderRow onClick={openLocalModels} /> : null}
-        {showRest ? (
-          <>
-            {/* Fireworks leads the expanded list, matching CANONICAL_PROVIDERS
-                (Nous → Fireworks), but stays hidden until the user opens it. */}
-            <FireworksProviderRow onClick={() => openKeyForm('FIREWORKS_API_KEY')} />
-            {rest.map(p => (
-              <ProviderRow key={p.id} onSelect={select} provider={p} />
-            ))}
-            <OpenRouterProviderRow onClick={() => openKeyForm('OPENROUTER_API_KEY')} />
-          </>
-        ) : null}
-      </div>
-      {collapsible ? (
-        <Button
-          className="mt-1 self-center font-medium"
-          onClick={() => setShowAll(persistShowAll(!showAll))}
-          size="xs"
-          type="button"
-          variant="text"
-        >
-          {showAll ? t.onboarding.collapse : t.onboarding.otherProviders}
-          <ChevronDown className={cn('size-3.5 transition', showAll && 'rotate-180')} />
-        </Button>
-      ) : null}
-      <div className="flex items-center justify-between gap-3 pt-1">
-        {/* First run only: let the user defer the choice and land in the app.
-            In manual mode the overlay already has a close affordance, so the
-            "choose later" escape would be redundant — hide it. */}
-        {manual ? <span /> : <ChooseLaterLink />}
-        <Button className="-mr-2 font-medium" onClick={() => openKeyForm()} size="xs" type="button" variant="text">
-          {t.onboarding.haveApiKey}
-        </Button>
-      </div>
+    <div className="grid gap-3">
+      <ApiKeyForm
+        canGoBack={false}
+        initialEnvKey="OPENAI_BASE_URL"
+        onBack={() => {}}
+        onSave={(envKey, value, name, apiKey) => saveOnboardingApiKey(envKey, value, name, ctx, apiKey)}
+        options={[
+          {
+            id: 'custom',
+            name: t.settings.nav.providerCustomEndpoints,
+            envKey: 'OPENAI_BASE_URL',
+            docsUrl: '',
+            placeholder: 'https://api.example.com/v1'
+          }
+        ]}
+      />
+      {manual ? null : (
+        <div className="flex justify-center pt-1">
+          <ChooseLaterLink />
+        </div>
+      )}
     </div>
   )
 }

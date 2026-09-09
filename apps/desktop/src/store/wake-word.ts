@@ -1,4 +1,8 @@
+import { persistBoolean, storedBoolean } from '@/lib/storage'
 import { atom } from 'nanostores'
+
+const CLIENT_WAKE_KEY = 'hermes.desktop.wakeWordEnabled'
+const clientWakeEnabled = () => storedBoolean(CLIENT_WAKE_KEY, false)
 
 import { type ClientWakeCaptureHandle, startClientWakeCapture } from '@/lib/wake-client-capture'
 import { $gateway } from '@/store/gateway'
@@ -176,7 +180,7 @@ const noticeFrom = (result: { hint?: string; reason?: string | null } | null | u
 /** Sync the atom from a `wake.status` payload (mount / gateway-ready). */
 export function applyWakeStatus(status: WakeStatusResponse | null | undefined): void {
   const current = $wakeWord.get()
-  const listening = Boolean(status?.listening)
+  const listening = clientWakeEnabled() && Boolean(status?.listening)
   // "Armed but deaf" keeps its input-device hint visible in the tooltip even
   // though the toggle shows listening.
   const silent = Boolean(status?.audio_silent)
@@ -184,7 +188,7 @@ export function applyWakeStatus(status: WakeStatusResponse | null | undefined): 
   $wakeWord.set({
     ...current,
     available: Boolean(status?.available),
-    enabled: Boolean(status?.enabled),
+    enabled: clientWakeEnabled() && Boolean(status?.enabled),
     listening,
     notice: listening && !silent ? '' : noticeFrom(status),
     phrase: status?.phrase?.trim() || current.phrase
@@ -197,6 +201,7 @@ export function applyWakeStartResult(result: WakeStartResponse | null | undefine
   const current = $wakeWord.get()
 
   if (result?.started) {
+    persistBoolean(CLIENT_WAKE_KEY, true)
     $wakeWord.set({
       ...current,
       available: true,
@@ -257,6 +262,8 @@ export async function armWakeWord(request: WakeRequester = gatewayRequester): Pr
 
     applyWakeStatus(status)
 
+    if (!clientWakeEnabled()) return
+
     if (!status?.available || status.listening) {
       // Armed already (e.g. another surface/restart) — reattach feeder if client.
       if (status?.listening) {
@@ -303,6 +310,7 @@ export async function toggleWakeWord(request: WakeRequester = gatewayRequester):
 
   try {
     if (state.listening) {
+      persistBoolean(CLIENT_WAKE_KEY, false)
       applyWakeStopResult(await request<WakeStopResponse>('wake.stop', { persist: true }))
     } else {
       // persist: true — a deliberate click is consent, so the backend flips
@@ -340,6 +348,7 @@ const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, m
  * this is a passive path and must not flip config.
  */
 export async function resumeWakeAfterVoice(request: WakeRequester = gatewayRequester): Promise<void> {
+  if (!clientWakeEnabled()) return
   try {
     await request('wake.resume', {})
   } catch {

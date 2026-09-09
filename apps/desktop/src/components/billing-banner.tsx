@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Codicon } from '@/components/ui/codicon'
 import { Tip } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n'
-import { $billingBlock, billingCtaLabel, clearBillingBlock, runBillingRecovery } from '@/store/billing-block'
+import { $billingBlock, clearBillingBlock } from '@/store/billing-block'
 
 function firstLine(text: string): string {
   return (text || '').split('\n')[0]?.trim() ?? ''
@@ -38,15 +38,6 @@ export function BillingBanner({ sessionId }: { sessionId: null | string }) {
       leading={<Codicon aria-hidden className="text-destructive/85" name="credit-card" size="0.8rem" />}
       trailing={
         <>
-          <Button
-            className="text-foreground/90 hover:text-foreground"
-            onClick={() => runBillingRecovery(block)}
-            size="micro"
-            type="button"
-            variant="text"
-          >
-            {billingCtaLabel(block, copy)}
-          </Button>
           <Tip label={copy.dismiss}>
             <Button
               aria-label={copy.dismiss}

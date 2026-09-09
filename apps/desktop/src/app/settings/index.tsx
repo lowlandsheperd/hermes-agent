@@ -2,7 +2,6 @@ import { useStore } from '@nanostores/react'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 
-import { codiconIcon } from '@/components/ui/codicon'
 import { KbdCombo } from '@/components/ui/kbd'
 import { Tip } from '@/components/ui/tooltip'
 import { getHermesConfigDefaults, getHermesConfigRecord, saveHermesConfig } from '@/hermes'
@@ -10,9 +9,7 @@ import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
 import {
   Archive,
-  BarChart3,
   Bell,
-  Cpu,
   Download,
   Globe,
   Info,
@@ -32,7 +29,6 @@ import { cn } from '@/lib/utils'
 import { $commandPaletteOpen, openCommandPalettePage } from '@/store/command-palette'
 import { confirm } from '@/store/confirm'
 import { bindingsFor } from '@/store/keybinds'
-import { $localModelsEnabled } from '@/store/local-models-flag'
 import { notifyError } from '@/store/notifications'
 import { $settingsScopeProfile } from '@/store/settings-scope'
 
@@ -44,7 +40,6 @@ import { SKILLS_ROUTE } from '../routes'
 
 import { AboutSettings } from './about-settings'
 import { AppearanceSettings } from './appearance-settings'
-import { BillingSettings } from './billing'
 import { ConfigSettings } from './config-settings'
 import { SECTIONS } from './constants'
 import { GatewaySettings } from './gateway-settings'
@@ -66,7 +61,6 @@ const SETTINGS_VIEWS: readonly SettingsViewId[] = [
   'keybinds',
   'keys',
   'notifications',
-  'billing',
   'plugins',
   'sessions',
   'about'
@@ -103,7 +97,7 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
   }, [activeView, setActiveView])
   // Providers subnav (Accounts vs API keys) lives in its own param so each
   // sub-view is deep-linkable and survives a refresh.
-  const [providerView, setProviderView] = useRouteEnumParam<ProviderView>('pview', PROVIDER_VIEWS, 'accounts')
+  const [providerView, setProviderView] = useRouteEnumParam<ProviderView>('pview', PROVIDER_VIEWS, 'custom-endpoints')
   const [keysView] = useRouteEnumParam<KeysView>('kview', KEYS_VIEWS, 'tools')
 
   // Jump to a section + its sub-view in one navigate. Two sequential setters
@@ -192,51 +186,15 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
         onSelect: () => setActiveView('notifications')
       },
       {
-        active: activeView === 'billing',
-        icon: BarChart3,
-        id: 'billing',
-        label: t.settings.nav.billing,
-        onSelect: () => setActiveView('billing')
-      },
-      {
         active: activeView === 'providers',
         children: [
-          {
-            active: activeView === 'providers' && providerView === 'accounts',
-            icon: codiconIcon('account'),
-            id: 'pview:accounts',
-            label: t.settings.nav.providerAccounts,
-            onSelect: () => openProviderView('accounts')
-          },
-          {
-            active: activeView === 'providers' && providerView === 'keys',
-            icon: KeyRound,
-            id: 'pview:keys',
-            label: t.settings.nav.providerApiKeys,
-            onSelect: () => openProviderView('keys')
-          },
           {
             active: activeView === 'providers' && providerView === 'custom-endpoints',
             icon: Globe,
             id: 'pview:custom-endpoints',
             label: t.settings.nav.providerCustomEndpoints,
             onSelect: () => openProviderView('custom-endpoints')
-          },
-          // Local models ships behind the --local launch flag: no flag, no
-          // nav entry (the pane itself also refuses to render, so a stale
-          // ?pview=local deep link falls back to accounts-shaped emptiness
-          // rather than a hidden feature).
-          ...($localModelsEnabled.get()
-            ? [
-                {
-                  active: activeView === 'providers' && providerView === 'local',
-                  icon: Cpu,
-                  id: 'pview:local',
-                  label: t.settings.nav.providerLocalModels,
-                  onSelect: () => openProviderView('local')
-                }
-              ]
-            : [])
+          }
         ],
         gapBefore: true,
         icon: Zap,
@@ -420,8 +378,6 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
       <KeysSettings view={keysView} />
     ) : activeView === 'notifications' ? (
       <NotificationsSettings />
-    ) : activeView === 'billing' ? (
-      <BillingSettings />
     ) : activeView === 'plugins' ? (
       <PluginsSettings />
     ) : (

@@ -18,6 +18,8 @@ const requester = (impl: (method: string, params?: Record<string, unknown>) => u
   ) as unknown as WakeRequester
 
 beforeEach(() => {
+  // These lifecycle tests exercise an explicitly opted-in client.
+  localStorage.setItem('hermes.desktop.wakeWordEnabled', 'true')
   resetWakeWordState()
 })
 

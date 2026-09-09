@@ -12,6 +12,9 @@ export function rejectLocalRuntime(): void {
 /** The REST proxy must not expose server update actions to this client. */
 export function assertClientApiPath(path: unknown): void {
   const pathname = decodeURIComponent(new URL(String(path || ''), 'http://client.invalid').pathname)
+  if (/^\/api\/(?:billing|subscription)(?:\/|$)/.test(pathname) || /^\/api\/providers\/oauth(?:\/|$)/.test(pathname)) {
+    throw new Error('Account services are disabled. Use a custom endpoint.')
+  }
   if (/^\/api\/hermes\/update(?:\/|$)/.test(pathname)) {
     throw new Error('Updates are disabled.')
   }

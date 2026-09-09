@@ -10,12 +10,14 @@ import {
   saveCustomEndpoint,
   validateCustomEndpoint
 } from '@/hermes'
+import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
 import { Check, Globe, Loader2, Plus, Save, Trash2, Zap } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import { confirm } from '@/store/confirm'
 import { notify, notifyError } from '@/store/notifications'
 import type { CustomEndpoint, CustomEndpointUpdate } from '@/types/hermes'
+import { customEndpointText } from './custom-endpoints-copy'
 
 import { EmptyState, Pill, SectionHeading, SettingsContent, SettingsSkeleton } from './primitives'
 
@@ -76,6 +78,8 @@ function toPayload(form: EndpointForm, models?: string[]): CustomEndpointUpdate 
 }
 
 export function CustomEndpointsSettings({ onConfigSaved, onMainModelChanged }: CustomEndpointsSettingsProps) {
+  const { locale } = useI18n()
+  const text = (value: string) => customEndpointText(locale, value)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
@@ -109,7 +113,7 @@ export function CustomEndpointsSettings({ onConfigSaved, onMainModelChanged }: C
           setDiscoveredModels(current.models)
         }
       } catch (err) {
-        notifyError(err, 'Could not load custom endpoints')
+        notifyError(err, text('Could not load custom endpoints'))
       } finally {
         if (!cancelled) {
           setLoading(false)
@@ -142,9 +146,9 @@ export function CustomEndpointsSettings({ onConfigSaved, onMainModelChanged }: C
 
       triggerHaptic('success')
       onConfigSaved?.()
-      notify({ kind: 'success', message: 'Custom endpoint saved.' })
+      notify({ kind: 'success', message: text('Custom endpoint saved.') })
     } catch (err) {
-      notifyError(err, 'Save failed')
+      notifyError(err, text('Save failed'))
     } finally {
       setSaving(false)
     }
@@ -164,17 +168,19 @@ export function CustomEndpointsSettings({ onConfigSaved, onMainModelChanged }: C
         notify({
           kind: 'success',
           message: response.models.length
-            ? `Endpoint is reachable. Found ${response.models.length} models.`
-            : 'Endpoint is reachable.'
+            ? locale === 'zh'
+              ? `端点连接正常，发现 ${response.models.length} 个模型。`
+              : `Endpoint is reachable. Found ${response.models.length} models.`
+            : text('Endpoint is reachable.')
         })
       } else {
         notify({
           kind: response.reachable ? 'warning' : 'error',
-          message: response.message || 'Endpoint validation failed.'
+          message: response.message || text('Endpoint validation failed.')
         })
       }
     } catch (err) {
-      notifyError(err, 'Validation failed')
+      notifyError(err, text('Validation failed'))
     } finally {
       setTesting(false)
     }
@@ -189,15 +195,19 @@ export function CustomEndpointsSettings({ onConfigSaved, onMainModelChanged }: C
       onMainModelChanged?.(response.provider, response.model)
       triggerHaptic('success')
     } catch (err) {
-      notifyError(err, 'Activation failed')
+      notifyError(err, text('Activation failed'))
     } finally {
       setActivating(null)
     }
   }
 
   async function handleDelete(endpoint: CustomEndpoint) {
-    // This panel is not internationalized at all — keep the literal it had.
-    if (!(await confirm({ destructive: true, title: `Delete ${endpoint.name}?` }))) {
+    if (
+      !(await confirm({
+        destructive: true,
+        title: locale === 'zh' ? `删除 ${endpoint.name}？` : `Delete ${endpoint.name}?`
+      }))
+    ) {
       return
     }
 
@@ -214,7 +224,7 @@ export function CustomEndpointsSettings({ onConfigSaved, onMainModelChanged }: C
       onConfigSaved?.()
       triggerHaptic('success')
     } catch (err) {
-      notifyError(err, 'Delete failed')
+      notifyError(err, text('Delete failed'))
     } finally {
       setDeleting(null)
     }
@@ -231,7 +241,7 @@ export function CustomEndpointsSettings({ onConfigSaved, onMainModelChanged }: C
     <SettingsContent>
       <div className="space-y-6">
         <section>
-          <SectionHeading icon={Globe} meta={`${endpoints.length}`} title="Custom Endpoints" />
+          <SectionHeading icon={Globe} meta={`${endpoints.length}`} title={text('Custom Endpoints')} />
           <div className="divide-y divide-border/40 rounded-md border border-border/50">
             {endpoints.length ? (
               endpoints.map(endpoint => (
@@ -249,7 +259,7 @@ export function CustomEndpointsSettings({ onConfigSaved, onMainModelChanged }: C
                       {endpoint.is_current && (
                         <Pill tone="primary">
                           <Check className="size-3" />
-                          Active
+                          {text('Active')}
                         </Pill>
                       )}
                       {endpoint.source === 'direct-config' && <Pill>config.yaml</Pill>}
@@ -259,7 +269,7 @@ export function CustomEndpointsSettings({ onConfigSaved, onMainModelChanged }: C
                     </div>
                     <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
                       <span>{endpoint.model}</span>
-                      {endpoint.has_api_key && <span>{endpoint.api_key_preview ?? 'API key set'}</span>}
+                      {endpoint.has_api_key && <span>{endpoint.api_key_preview ?? text('API key set')}</span>}
                     </div>
                   </button>
                   <div className="flex items-center gap-2 sm:justify-end">
@@ -288,17 +298,20 @@ export function CustomEndpointsSettings({ onConfigSaved, onMainModelChanged }: C
                 </div>
               ))
             ) : (
-              <EmptyState description="Add an OpenAI-compatible endpoint below." title="No custom endpoints" />
+              <EmptyState
+                description={text('Add an OpenAI-compatible endpoint below.')}
+                title={text('No custom endpoints')}
+              />
             )}
           </div>
         </section>
 
         <section>
-          <SectionHeading icon={Plus} title={form.id ? 'Edit Endpoint' : 'Add Endpoint'} />
+          <SectionHeading icon={Plus} title={form.id ? text('Edit Endpoint') : text('Add Endpoint')} />
           <div className="grid gap-3 rounded-md border border-border/50 p-3">
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="grid gap-1.5 text-xs text-muted-foreground">
-                Name
+                {text('Name')}
                 <Input
                   onChange={event => setForm(current => ({ ...current, name: event.target.value }))}
                   placeholder="Axet Proxy"
@@ -306,7 +319,7 @@ export function CustomEndpointsSettings({ onConfigSaved, onMainModelChanged }: C
                 />
               </label>
               <label className="grid gap-1.5 text-xs text-muted-foreground">
-                Provider ID
+                {text('Provider ID')}
                 <Input
                   onChange={event => setForm(current => ({ ...current, id: event.target.value }))}
                   placeholder="axet-proxy"
@@ -315,16 +328,16 @@ export function CustomEndpointsSettings({ onConfigSaved, onMainModelChanged }: C
               </label>
             </div>
             <label className="grid gap-1.5 text-xs text-muted-foreground">
-              Endpoint URL
+              {text('Endpoint URL')}
               <Input
                 onChange={event => setForm(current => ({ ...current, baseUrl: event.target.value }))}
-                placeholder="http://127.0.0.1:8081/v1"
+                placeholder="https://api.example.com/v1"
                 value={form.baseUrl}
               />
             </label>
             <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem]">
               <label className="grid gap-1.5 text-xs text-muted-foreground">
-                Default Model
+                {text('Default Model')}
                 <Input
                   list="custom-endpoint-models"
                   onChange={event => setForm(current => ({ ...current, model: event.target.value }))}
@@ -338,20 +351,20 @@ export function CustomEndpointsSettings({ onConfigSaved, onMainModelChanged }: C
                 </datalist>
               </label>
               <label className="grid gap-1.5 text-xs text-muted-foreground">
-                Context
+                {text('Context')}
                 <Input
                   inputMode="numeric"
                   onChange={event => setForm(current => ({ ...current, contextLength: event.target.value }))}
-                  placeholder="Auto"
+                  placeholder={text('Auto')}
                   value={form.contextLength}
                 />
               </label>
             </div>
             <label className="grid gap-1.5 text-xs text-muted-foreground">
-              API Key
+              {text('API Key')}
               <Input
                 onChange={event => setForm(current => ({ ...current, apiKey: event.target.value }))}
-                placeholder={form.id ? 'Leave blank to keep current key' : 'Optional'}
+                placeholder={form.id ? text('Leave blank to keep current key') : text('Optional')}
                 type="password"
                 value={form.apiKey}
               />
@@ -362,14 +375,14 @@ export function CustomEndpointsSettings({ onConfigSaved, onMainModelChanged }: C
                   checked={form.makeDefault}
                   onCheckedChange={checked => setForm(current => ({ ...current, makeDefault: checked === true }))}
                 />
-                Use for new chats
+                {text('Use for new chats')}
               </label>
               <label className="flex items-center gap-2">
                 <Checkbox
                   checked={form.discoverModels}
                   onCheckedChange={checked => setForm(current => ({ ...current, discoverModels: checked === true }))}
                 />
-                Discover models
+                {text('Discover models')}
               </label>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -379,11 +392,11 @@ export function CustomEndpointsSettings({ onConfigSaved, onMainModelChanged }: C
                 variant="outline"
               >
                 {testing ? <Loader2 className="animate-spin" /> : <Zap />}
-                Test
+                {text('Test')}
               </Button>
               <Button disabled={saving || !canSave} onClick={() => void handleSave()}>
                 {saving ? <Loader2 className="animate-spin" /> : <Save />}
-                Save
+                {text('Save')}
               </Button>
               <Button
                 className={cn(!form.id && 'hidden')}
@@ -394,7 +407,7 @@ export function CustomEndpointsSettings({ onConfigSaved, onMainModelChanged }: C
                 type="button"
                 variant="ghost"
               >
-                New endpoint
+                {text('New endpoint')}
               </Button>
             </div>
           </div>

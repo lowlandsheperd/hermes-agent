@@ -15,7 +15,7 @@ it('keeps the desktop toggle local across config refreshes', async () => {
       localStorage.clear()
       vi.resetModules()
       const prefs = await import('./voice-prefs')
-      const write = vi.spyOn(localStorage, 'setItem')
+      const write = vi.spyOn(Storage.prototype, 'setItem')
 
       if (fails) {
         write.mockImplementation(() => {
@@ -38,32 +38,13 @@ it('keeps the desktop toggle local across config refreshes', async () => {
   }
 })
 
-it('migrates the legacy preference once, not on every refresh', async () => {
-  for (const fails of [false, true]) {
-    for (const enabled of [false, true]) {
-      localStorage.clear()
-      vi.resetModules()
-      const prefs = await import('./voice-prefs')
-      const write = vi.spyOn(localStorage, 'setItem')
-
-      if (fails) {
-        write.mockImplementation(() => {
-          throw new DOMException('Denied', 'SecurityError')
-        })
-      }
-
-      try {
-        prefs.applyAutoSpeakFromConfig(null)
-        expect(localStorage.getItem('hermes.desktop.autoSpeakReplies')).toBeNull()
-        prefs.applyAutoSpeakFromConfig({ voice: { auto_tts: enabled } })
-        prefs.applyAutoSpeakFromConfig({ voice: { auto_tts: !enabled } })
-        expect(prefs.$autoSpeakReplies.get()).toBe(enabled)
-        expect(localStorage.getItem('hermes.desktop.autoSpeakReplies')).toBe(fails ? null : String(enabled))
-      } finally {
-        write.mockRestore()
-      }
-    }
-  }
+it('does not inherit the remote messaging read-aloud preference', async () => {
+  localStorage.clear()
+  vi.resetModules()
+  const prefs = await import('./voice-prefs')
+  prefs.applyAutoSpeakFromConfig({ voice: { auto_tts: true } })
+  expect(prefs.$autoSpeakReplies.get()).toBe(false)
+  expect(localStorage.getItem('hermes.desktop.autoSpeakReplies')).toBeNull()
 })
 
 describe('applyVoiceStopPhraseFromConfig', () => {

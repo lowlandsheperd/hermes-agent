@@ -6,7 +6,7 @@ import { coerceGatewayText, coerceThinkingText } from '@/lib/chat-runtime'
 import { playCompletionSound } from '@/lib/completion-sound'
 import { parseErrorSurface } from '@/lib/error-surface'
 import { triggerHaptic } from '@/lib/haptics'
-import { billingCtaLabel, clearBillingBlock, runBillingRecovery, setBillingBlock } from '@/store/billing-block'
+import { clearBillingBlock, setBillingBlock } from '@/store/billing-block'
 import { clearClarifyRequest } from '@/store/clarify'
 import { setSessionCompacting } from '@/store/compaction'
 import { notify } from '@/store/notifications'
@@ -59,8 +59,7 @@ function surfaceBillingBlock(sessionId: string, raw: unknown): void {
       : translateNow('billingBlock.titleProvider', block.provider_label),
     message: firstBillingLine(block.message) || translateNow('billingBlock.fallbackMessage'),
     // Sticky: a credit wall blocks every turn until resolved.
-    durationMs: 0,
-    action: { label: billingCtaLabel(block, ctaCopy), onClick: () => runBillingRecovery(block) }
+    durationMs: 0
   })
 }
 

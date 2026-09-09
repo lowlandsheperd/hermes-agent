@@ -127,3 +127,14 @@ test('client REST boundary blocks server updates and preserves ordinary server A
     expect(() => assertClientApiPath(path)).not.toThrow()
   }
 })
+
+test('client blocks account OAuth and billing APIs while allowing custom endpoint configuration', () => {
+  for (const path of [
+    '/api/providers/oauth',
+    '/api/providers/oauth/nous/start',
+    '/api/billing',
+    '/api/subscription/state'
+  ])
+    expect(() => assertClientApiPath(path)).toThrow('Account services are disabled')
+  expect(() => assertClientApiPath('/api/providers/custom-endpoints')).not.toThrow()
+})

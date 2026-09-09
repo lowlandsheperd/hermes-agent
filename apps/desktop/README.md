@@ -15,6 +15,12 @@ TUI and `/api/console` runs Hermes console commands; neither exposes the general
 interactive shell required by Desktop Terminal. The client never opens a local
 shell as a fallback. The agent's server-side terminal tool is unaffected.
 
+The interface defaults to Simplified Chinese and remembers its language locally.
+Read-aloud defaults off and does not inherit the server's messaging auto-TTS.
+Wake-word capture requires client opt-in, even if the server has it enabled.
+Provider setup offers custom endpoints only. Billing and account OAuth/Portal
+setup are unavailable; existing server model configuration is not rewritten.
+
 Build the installer with the **Build Hermes Desktop for Windows** workflow,
 selecting the `remote-only-client` branch. The sections below document the upstream
 shared desktop architecture and developer workflow.

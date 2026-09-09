@@ -1,8 +1,6 @@
 import type { BillingBlock } from '@hermes/shared'
 import { atom } from 'nanostores'
 
-import { openExternalLink } from '@/lib/external-link'
-
 /**
  * The active inference billing wall, if any. Set from the gateway
  * `message.complete` / `error` event when a turn fails with
@@ -45,9 +43,7 @@ export function clearBillingBlock(sessionId?: string): void {
   $billingBlock.set(null)
 }
 
-export function requestBillingSettings(): void {
-  $billingSettingsRequest.set($billingSettingsRequest.get() + 1)
-}
+export function requestBillingSettings(): void {}
 
 /**
  * The single recovery action for a billing wall, shared by the toast and the
@@ -55,21 +51,7 @@ export function requestBillingSettings(): void {
  * Settings → Billing surface; a third-party provider deep-links to its own
  * billing page (falling back to the in-app surface only if we have no URL).
  */
-export function runBillingRecovery(block: BillingBlock): void {
-  if (block.is_nous) {
-    requestBillingSettings()
-
-    return
-  }
-
-  if (block.billing_url) {
-    openExternalLink(block.billing_url)
-
-    return
-  }
-
-  requestBillingSettings()
-}
+export function runBillingRecovery(block: BillingBlock): void {}
 
 export function billingCtaLabel(block: BillingBlock, copy: { addCredits: string; openBilling: string }): string {
   return block.is_nous ? copy.openBilling : copy.addCredits

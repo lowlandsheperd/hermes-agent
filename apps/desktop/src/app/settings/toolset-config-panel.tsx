@@ -565,7 +565,10 @@ export function ToolsetConfigPanel({ toolset, onConfiguredChange, profile }: Too
     void refresh()
   }, [refresh])
 
-  const providers = useMemo(() => cfg?.providers ?? [], [cfg])
+  const providers = useMemo(
+    () => (cfg?.providers ?? []).filter(provider => !provider.requires_nous_auth && provider.name !== 'nous'),
+    [cfg]
+  )
 
   // Default the expanded provider to the one actually active in config
   // (`is_active` / `cfg.active_provider`, mirroring the CLI picker), then the

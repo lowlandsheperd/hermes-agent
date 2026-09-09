@@ -4,14 +4,11 @@ import {
   cancelOAuthSession,
   getGlobalModelOptions,
   getRecommendedDefaultModel,
-  listOAuthProviders,
   pollOAuthSession,
   setEnvVar,
-  startOAuthLogin,
   submitOAuthCode,
   validateProviderCredential
 } from '@/hermes'
-import { translateNow } from '@/i18n'
 import { isProviderSetupErrorMessage } from '@/lib/provider-setup-errors'
 import { evaluateRuntimeReadiness, type RuntimeReadinessResult } from '@/lib/runtime-readiness'
 import { setMainModelAssignment } from '@/store/cron-model-impact'
@@ -422,36 +419,7 @@ function providerResolutionFailure(reason: null | string) {
 }
 
 async function refreshProviders() {
-  if (providersRefreshPromise) {
-    await providersRefreshPromise
-
-    return
-  }
-
-  const generation = flowGeneration
-  providersRefreshPromise = (async () => {
-    try {
-      const { providers } = await listOAuthProviders($desktopOnboarding.get().targetProfile)
-
-      if (generation !== flowGeneration) {
-        return
-      }
-
-      patch({ mode: providers.length > 0 ? 'oauth' : 'apikey', providers })
-    } catch {
-      if (generation !== flowGeneration) {
-        return
-      }
-
-      patch({ mode: 'apikey', providers: [] })
-    } finally {
-      if (generation === flowGeneration) {
-        providersRefreshPromise = null
-      }
-    }
-  })()
-
-  await providersRefreshPromise
+  patch({ mode: 'apikey', providers: [] })
 }
 
 export function requestDesktopOnboarding(reason = DEFAULT_ONBOARDING_REASON) {
@@ -679,60 +647,7 @@ async function openSignInUrl(url: string) {
 }
 
 export async function startProviderOAuth(provider: OAuthProvider, ctx: OnboardingContext) {
-  ctx = { ...ctx }
-  const generation = flowGeneration
-  flowProfile = ctx.profile
-  clearPoll()
-
-  if (provider.flow === 'external') {
-    setFlow({ status: 'external_pending', provider, copied: false })
-
-    return
-  }
-
-  setFlow({ status: 'starting', provider })
-
-  try {
-    const start = await startOAuthLogin(provider.id, ctx.profile)
-
-    if (generation !== flowGeneration) {
-      void cancelOAuthSession(start.session_id, ctx.profile).catch(() => undefined)
-
-      return
-    }
-
-    const browserUrl = start.flow === 'device_code' ? start.verification_url : start.auth_url
-    await openSignInUrl(browserUrl)
-
-    if (generation !== flowGeneration) {
-      void cancelOAuthSession(start.session_id, ctx.profile).catch(() => undefined)
-
-      return
-    }
-
-    if (start.flow === 'pkce') {
-      setFlow({ status: 'awaiting_user', provider, start, code: '' })
-
-      return
-    }
-
-    setFlow({ status: 'polling', provider, start, copied: false })
-    schedulePollExpiry(start, () =>
-      setFlow({
-        status: 'error',
-        provider,
-        start,
-        message: translateNow('onboarding.signInExpired')
-      })
-    )
-    pollTimer = window.setInterval(() => void pollSession(provider, start, ctx, generation), POLL_MS)
-  } catch (error) {
-    if (generation !== flowGeneration) {
-      return
-    }
-
-    setFlow({ status: 'error', provider, message: `Could not start sign-in: ${errMessage(error)}` })
-  }
+  throw new Error('Use a custom endpoint in this client.')
 }
 
 // Poll a session-backed device-code flow until it resolves.
