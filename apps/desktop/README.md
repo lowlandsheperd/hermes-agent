@@ -1,15 +1,19 @@
 # Windows remote client (this fork)
 
-This desktop build connects through a server URL or SSH only. With no configured
+This desktop build connects through a server URL only. With no configured
 server it displays connection setup; failed or deleted connections never start
 or install a Hermes runtime on this computer. Local and Hermes Cloud connection
 choices are unavailable, including recovery and profile-switching menus.
 
-Existing URL/SSH connections are imported once. The connection registry then owns
-routing, so deleting a server does not restore it from old settings. Client
-updates are downloaded from this fork's releases; the source-runtime updater and
-local Hermes repair/uninstall actions are disabled. SSH uses the existing remote
-lifecycle and may start/manage Hermes on the selected server.
+Existing URL connections are imported once. The connection registry then owns
+routing, so deleting a server does not restore it from old settings. Saved SSH,
+local, and Cloud connections are discarded. Client and server updates are disabled:
+no checks, notifications, menus, release links, or update actions are exposed.
+
+Terminal is disabled. In this server revision, `/api/pty` starts the Hermes chat
+TUI and `/api/console` runs Hermes console commands; neither exposes the general
+interactive shell required by Desktop Terminal. The client never opens a local
+shell as a fallback. The agent's server-side terminal tool is unaffected.
 
 Build the installer with the **Build Hermes Desktop for Windows** workflow,
 selecting the `remote-only-client` branch. The sections below document the upstream

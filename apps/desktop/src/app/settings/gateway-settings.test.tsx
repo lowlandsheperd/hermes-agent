@@ -60,7 +60,7 @@ describe('GatewaySettings', () => {
   it('loads the machine-level connection config (no profile scoping)', async () => {
     render(<GatewaySettings />)
     expect(await screen.findByText('Remote gateway')).toBeTruthy()
-    expect(screen.getByText('Connect via SSH')).toBeTruthy()
+    expect(screen.queryByText('Connect via SSH')).toBeNull()
     expect(screen.queryByText('Local gateway')).toBeNull()
     expect(screen.queryByText('Hermes Cloud')).toBeNull()
 

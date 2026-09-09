@@ -806,7 +806,7 @@ export const en: Translations = {
     // v2 multi-connection registry: Settings → Gateways.
     connections: {
       title: 'Registered gateways',
-      intro: 'Manage your URL and SSH server connections.',
+      intro: 'Manage your URL server connections.',
       stagedNote:
         'Switch gateways from Sessions. Profiles, chats, messaging, and cron jobs stay with their gateway; work on other gateways keeps running.',
       launchModeTitle: 'At startup, return to Sessions on the last-used gateway',
@@ -890,8 +890,7 @@ export const en: Translations = {
       unavailableDesc: 'The desktop IPC bridge does not expose gateway settings.',
       title: 'Gateway Connection',
       envOverride: 'env override',
-      intro:
-        'Connect to an existing Hermes server using its URL or SSH. Profiles are discovered from the connected server.',
+      intro: 'Connect to an existing Hermes server using its URL. Profiles are discovered from the connected server.',
       envOverrideTitle: 'Environment variables are controlling this desktop session.',
       envOverrideDesc:
         'Unset HERMES_DESKTOP_REMOTE_URL and HERMES_DESKTOP_REMOTE_TOKEN to use the saved setting below.',

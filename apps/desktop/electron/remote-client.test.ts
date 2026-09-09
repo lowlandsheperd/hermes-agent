@@ -11,11 +11,11 @@ import {
   normalizeConnectionInput,
   normalizeRegistry,
   reconcileAppliedGlobalConnection,
-  removeConnection
+  removeConnection,
+  resolveClientRemoteRoute as resolveDesktopRemoteRoute,
+  runRemoteClientStartup as runPrimaryBackendStartup
 } from './remote-client-connections'
-import { resolveClientRemoteRoute as resolveDesktopRemoteRoute } from './remote-client-connections'
-import { runRemoteClientStartup as runPrimaryBackendStartup } from './remote-client-connections'
-import { assertRemoteConnectionKind, rejectLocalRuntime } from './remote-client-policy'
+import { assertClientApiPath, assertRemoteConnectionKind, rejectLocalRuntime } from './remote-client-policy'
 
 test('registry migration and deletion never select a local runtime or resurrect a deleted server', () => {
   const dir = mkdtempSync(join(tmpdir(), 'hermes-remote-client-'))
@@ -35,22 +35,21 @@ test('registry migration and deletion never select a local runtime or resurrect 
         connections: [
           ...registry.connections,
           { id: 'local', kind: 'local', label: 'This device' },
+          { id: 'ssh', kind: 'ssh', label: 'SSH', host: 'server' },
           { id: 'cloud', kind: 'cloud', label: 'Cloud', url: 'https://cloud.example' }
         ]
       })
     )
     registry = normalizeRegistry(JSON.parse(readFileSync(file, 'utf8')))
-    expect(registry.connections.map(c => c.kind).sort()).toEqual(['remote', 'ssh'])
+    expect(registry.connections.map(c => c.kind).sort()).toEqual(['remote'])
     expect(resolveDesktopRemoteRoute({ config, registry })?.kind).toBe('remote')
-    registry = removeConnection(registry, registry.primary)
-    expect(resolveDesktopRemoteRoute({ config, registry })?.kind).toBe('ssh')
     registry = removeConnection(registry, registry.primary)
     expect(registry.primary).toBe('')
     expect(registry.connections).toEqual([])
     expect(resolveDesktopRemoteRoute({ config, registry })).toBeNull()
     expect(normalizeRegistry(null).connections).toEqual([])
 
-    for (const kind of ['local', 'cloud', undefined, 'invalid']) {
+    for (const kind of ['local', 'ssh', 'cloud', undefined, 'invalid']) {
       expect(() => assertRemoteConnectionKind(kind)).toThrow()
       expect(() => normalizeConnectionInput({ kind, label: 'Rejected' } as any, registry)).toThrow()
     }
@@ -61,8 +60,8 @@ test('registry migration and deletion never select a local runtime or resurrect 
   }
 })
 
-test('URL and SSH apply resume first run without local preparation, including connection failures', async () => {
-  for (const mode of ['remote', 'ssh'] as const) {
+test('URL apply resume first run without local preparation, including connection failures', async () => {
+  for (const mode of ['remote'] as const) {
     let registry = normalizeRegistry(null)
     let prompted!: () => void
 
@@ -90,7 +89,7 @@ test('URL and SSH apply resume first run without local preparation, including co
     expect(local).not.toHaveBeenCalled()
     registry = reconcileAppliedGlobalConnection(registry, {
       mode,
-      remote: mode === 'ssh' ? { mode, host: 'server' } : { url: 'https://gateway.example' }
+      remote: { url: 'https://gateway.example' }
     })
     const teardown = vi.fn()
     await rehomePrimaryConnection({
@@ -112,5 +111,19 @@ test('URL and SSH apply resume first run without local preparation, including co
       })
     ).rejects.toThrow('Connection refused')
     expect(local).not.toHaveBeenCalled()
+  }
+})
+
+test('client REST boundary blocks server updates and preserves ordinary server APIs', () => {
+  for (const path of [
+    '/api/hermes/update',
+    '/api/hermes/update/check?force=true',
+    '/api/hermes/%75pdate',
+    '/api/fs/../hermes/update'
+  ]) {
+    expect(() => assertClientApiPath(path)).toThrow('Updates are disabled')
+  }
+  for (const path of ['/api/status', '/api/fs/default-cwd', '/api/config']) {
+    expect(() => assertClientApiPath(path)).not.toThrow()
   }
 })

@@ -127,6 +127,7 @@ import {
   withTransientRetries
 } from './connection-config'
 import { applyConnectionConfigAtomically } from './connection-config-apply'
+import type { RosterProfileMetadata } from './connection-registry'
 import {
   backendScopeKey,
   backendScopePrefix,
@@ -144,10 +145,8 @@ import {
   setPrimaryConnection,
   shouldDeferLocalEnumeration,
   shouldRetrySshInventory,
-  updateEligibility,
   upsertConnection
 } from './connection-registry'
-import type { RosterProfileMetadata } from './connection-registry'
 import { describeCrashReason, installCrashForensics } from './crash-forensics'
 import { adoptServedDashboardToken } from './dashboard-token'
 import { loadOrCreateInstallationId, sshOwnershipId } from './desktop-installation'
@@ -291,10 +290,7 @@ import { poolTouchKeys } from './pool-touch-scope'
 import { createKeepAwake } from './power-save'
 import { capturePreviewContents } from './preview-capture'
 import { PreviewReachRegistry } from './preview-reach'
-import {
-  createPrimaryRemoteConnection,
-  FirstRunSetupResetError,
-} from './primary-backend-startup'
+import { createPrimaryRemoteConnection, FirstRunSetupResetError } from './primary-backend-startup'
 import { rehomePrimaryConnection } from './primary-connection-rehome'
 import {
   assertLocalProfileCanStart,
@@ -329,7 +325,7 @@ import {
   resolveClientRemoteRoute as resolveDesktopRemoteRoute,
   runRemoteClientStartup as runPrimaryBackendStartup
 } from './remote-client-connections'
-import { assertRemoteConnectionKind, rejectLocalRuntime } from './remote-client-policy'
+import { assertClientApiPath, assertRemoteConnectionKind, rejectLocalRuntime } from './remote-client-policy'
 import * as remoteLifecycle from './remote-lifecycle'
 import {
   attachPowerResumeRemoteRevalidation,
@@ -3138,7 +3134,7 @@ async function checkUpdates() {
   return {
     supported: false,
     reason: 'remote-client',
-    message: 'Download client updates from the fork releases page.',
+    message: 'Updates are disabled.',
     branch: '',
     fetchedAt: Date.now()
   }
@@ -6760,17 +6756,11 @@ function sendWindowStateChanged(nextIsFullscreen?: boolean, target = mainWindow)
 function buildApplicationMenu() {
   const template = []
 
-  const checkForUpdatesItem = {
-    label: 'Check for Updates…',
-    click: () => sendOpenUpdatesRequested()
-  }
-
   if (IS_MAC) {
     template.push({
       label: APP_NAME,
       submenu: [
         { label: `About ${APP_NAME}`, click: () => showAboutPanelFresh() },
-        checkForUpdatesItem,
         { type: 'separator' },
         { role: 'services' },
         { type: 'separator' },
@@ -6881,11 +6871,6 @@ function buildApplicationMenu() {
     submenu: IS_MAC
       ? [{ role: 'minimize' }, { role: 'zoom' }, { role: 'front' }]
       : [{ role: 'minimize' }, { role: 'close' }]
-  })
-  template.push({
-    label: 'Help',
-    role: 'help',
-    submenu: [checkForUpdatesItem]
   })
 
   return Menu.buildFromTemplate(template)
@@ -9662,7 +9647,11 @@ async function sanitizeDesktopConnectionConfig(config = readDesktopConnectionCon
   if (!key) {
     const registry = readDesktopConnectionsRegistry()
     const selected = registry.connections.find(connection => connection.id === registry.primary)
-    config = { ...config, mode: selected?.kind || 'remote', remote: selected ? { ...selected, mode: selected.kind } : {} }
+    config = {
+      ...config,
+      mode: selected?.kind || 'remote',
+      remote: selected ? { ...selected, mode: selected.kind } : {}
+    }
   }
 
   const scoped = key ? config.profiles?.[key] || null : null
@@ -15770,7 +15759,9 @@ async function requestManagedSshUpdate(rawId) {
   return operation
 }
 
-ipcMain.handle('hermes:connections:update-managed', async (_event, rawId) => requestManagedSshUpdate(rawId))
+ipcMain.handle('hermes:connections:update-managed', async () => {
+  throw new Error('Updates are disabled.')
+})
 
 // Fan out `hermes update` to every eligible registered connection at once.
 // Cloud entries are excluded (platform-managed); each dispatch reports
@@ -15778,77 +15769,7 @@ ipcMain.handle('hermes:connections:update-managed', async (_event, rawId) => req
 // app's own update pipeline; Desktop-managed SSH uses the transactional
 // drain/update/restore lifecycle; URL remotes POST their backend updater.
 ipcMain.handle('hermes:connections:update-all', async (_event, payload) => {
-  const registry = readDesktopConnectionsRegistry()
-
-  // Optional renderer-side exclusions: the everything-update flow dispatches
-  // the ACTIVE backend through its own detailed-progress path and chains the
-  // local client apply LAST (it relaunches the app), so it excludes those ids
-  // here to avoid double-dispatch. No payload keeps the Settings button's
-  // original all-rows behavior byte-identical.
-  const excludeIds = new Set<string>(
-    Array.isArray((payload as any)?.excludeIds) ? (payload as any).excludeIds.map((id: unknown) => String(id)) : []
-  )
-
-  const results = await Promise.all(
-    registry.connections
-      .filter(connection => !excludeIds.has(connection.id))
-      .map(async connection => {
-        const base = { connectionId: connection.id, label: connection.label, kind: connection.kind }
-        const eligibility = updateEligibility(connection)
-
-        if (!eligibility.eligible) {
-          return { ...base, ok: false, skipped: true, reason: eligibility.reason }
-        }
-
-        try {
-          if (connection.kind === 'local') {
-            // The app-managed runtime updates through the same pipeline as the
-            // Settings → Updates button (marker + venv gate + relaunch flow).
-            const result: any = await applyUpdates({})
-
-            return { ...base, ok: result?.ok !== false, detail: result?.message || 'update started' }
-          }
-
-          if (connection.kind === 'ssh') {
-            const result = await requestManagedSshUpdate(connection.id)
-
-            return {
-              ...base,
-              ok: result.ok,
-              detail: result.message,
-              managed: result,
-              ...(result.ok ? {} : { error: result.error || result.outcome })
-            }
-          }
-
-          // Claim-guarded (#90812): coalesce with a concurrent renderer dial
-          // for the same connection instead of bootstrapping a second backend.
-          const descriptor: any = await backendDialClaims.run(backendScopeKey(connection.id, null), () =>
-            ensureRegistryBackend(connection.id, null)
-          )
-
-          const body: any = await postJsonForBackend(descriptor, '/api/hermes/update', {}, { timeoutMs: 15_000 })
-
-          if (body?.ok === false) {
-            // The backend refused (docker/nix/externally-managed installs) —
-            // surface ITS message, per-row, instead of failing the batch.
-            return {
-              ...base,
-              ok: false,
-              skipped: true,
-              reason: body?.error || 'backend-refused',
-              detail: body?.message
-            }
-          }
-
-          return { ...base, ok: true, detail: body?.message || 'update started' }
-        } catch (error: any) {
-          return { ...base, ok: false, error: String(error?.message || error) }
-        }
-      })
-  )
-
-  return { ok: true, results }
+  throw new Error('Updates are disabled.')
 })
 
 // Convenience wrappers around the bearer-aware descriptor request path.
@@ -16628,6 +16549,7 @@ async function handleHermesApiRequest(request) {
 }
 
 ipcMain.handle('hermes:api', async (_event, request) => {
+  assertClientApiPath(request?.path)
   // Hold the deletion gate for BOTH profile deletes and renames: a concurrent
   // renderer reconnect entering ensureBackend() mid-mutation would otherwise
   // respawn the old-name backend and recreate its HERMES_HOME (#45474).
@@ -17502,10 +17424,7 @@ ipcMain.handle('hermes:updates:apply', async (_event, payload) =>
 ipcMain.handle('hermes:updates:branch:get', async () => readDesktopUpdateConfig())
 
 ipcMain.handle('hermes:updates:branch:set', async (_event, name) => {
-  const branch = typeof name === 'string' && name.trim() ? name.trim() : DEFAULT_UPDATE_BRANCH
-  writeDesktopUpdateConfig({ branch })
-
-  return { branch }
+  throw new Error('Updates are disabled.')
 })
 
 // Resolve the canonical Hermes version (the one `release.py` bumps in
@@ -18042,7 +17961,7 @@ app.whenReady().then(() => {
   // serves were drained. The owner-only recovery journal survives that crash;
   // its worker waits for the install marker to clear, then reopens every scope
   // captured by the original transaction before removing the journal entry.
-  void resumeManagedSshRecoveries()
+
   createWindow()
 
   // Win/Linux cold start: the launching hermes:// URL is in our own argv.

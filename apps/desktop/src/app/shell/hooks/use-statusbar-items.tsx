@@ -9,29 +9,16 @@ import { ContextUsagePanel } from '@/app/shell/context-usage-panel'
 import { GatewayMenuPanel } from '@/app/shell/gateway-menu-panel'
 import { useContextBreakdown } from '@/app/shell/hooks/use-context-breakdown'
 import { useSystemResourcesStatusbarItem } from '@/app/shell/system-resources-statusbar'
-import { $paneVisible, togglePaneVisible } from '@/components/pane-shell/tree/store'
+import { $paneVisible } from '@/components/pane-shell/tree/store'
 import { Codicon } from '@/components/ui/codicon'
 import { GlyphSpinner } from '@/components/ui/glyph-spinner'
 import { useI18n } from '@/i18n'
 import { displayPath, pathLeaf } from '@/lib/display-path'
-import {
-  Activity,
-  AlertCircle,
-  Clock,
-  Command,
-  FolderOpen,
-  Globe,
-  Hash,
-  Layers3,
-  Loader2,
-  Terminal,
-  Zap
-} from '@/lib/icons'
+import { Activity, AlertCircle, Clock, Command, FolderOpen, Globe, Layers3, Loader2, Zap } from '@/lib/icons'
 import { runtimeReadinessDisplay, type RuntimeReadinessResult } from '@/lib/runtime-readiness'
 import { cacheHitLabel, contextBarLabel, LiveDuration, tokensPerSecondLabel, usageContextLabel } from '@/lib/statusbar'
 import { useStoreSelector } from '@/lib/use-session-slice'
 import { cn } from '@/lib/utils'
-import { resolveVersionStatus } from '@/lib/version-status'
 import { copyFilePath, revealFile } from '@/store/file-actions'
 import { revealFileInTree } from '@/store/layout'
 import { $activeGatewayProfile } from '@/store/profile'
@@ -53,14 +40,6 @@ import { $focusedRuntimeId, $focusedSessionState, $focusedStoredSessionId } from
 import { $statusbarHiddenIds } from '@/store/statusbar-prefs'
 import { $subagentsBySession, activeSubagentCount, failedSubagentCount } from '@/store/subagents'
 import { $gatewayRestarting } from '@/store/system-actions'
-import {
-  $backendUpdateApply,
-  $backendUpdateStatus,
-  $desktopVersion,
-  $updateApply,
-  $updateStatus,
-  openUpdateOverlayFor
-} from '@/store/updates'
 import type { StatusResponse, UsageStats } from '@/types/hermes'
 
 import { CRON_ROUTE, SETTINGS_ROUTE, WEBHOOKS_ROUTE } from '../../routes'
@@ -132,11 +111,6 @@ export function useStatusbarItems({
     Object.values(bySession).reduce((sum, items) => sum + failedSubagentCount(items), 0)
   )
 
-  const updateStatus = useStore($updateStatus)
-  const updateApply = useStore($updateApply)
-  const backendUpdateStatus = useStore($backendUpdateStatus)
-  const backendUpdateApply = useStore($backendUpdateApply)
-  const desktopVersion = useStore($desktopVersion)
   const connection = useStore($connection)
 
   // The FOCUSED session (interacted tile, else the primary — the same
@@ -324,93 +298,6 @@ export function useStatusbarItems({
     : gatewayDegraded
       ? 'text-amber-600 hover:text-amber-600'
       : 'text-destructive hover:text-destructive'
-
-  const clientVersionItem = useMemo<StatusbarItem>(() => {
-    const applying = updateApply.applying || updateApply.stage === 'restart'
-
-    const status = resolveVersionStatus({
-      applying,
-      applyMessage: updateApply.message,
-      behind: updateStatus?.behind ?? 0,
-      branch: updateStatus?.branch,
-      copy,
-      remote: connection?.mode === 'remote',
-      restarting: updateApply.stage === 'restart',
-      sha: updateStatus?.currentSha?.slice(0, 7) ?? null,
-      target: 'client',
-      updateAvailable: updateStatus?.updateAvailable,
-      version: desktopVersion?.appVersion
-    })
-
-    return {
-      className: status.hasUpdate ? 'text-primary hover:text-primary' : undefined,
-      detail: status.detail,
-      hidden: status.unknown,
-      icon: applying ? <Loader2 className="size-3 animate-spin" /> : <Hash className="size-3" />,
-      id: 'version-client',
-      label: status.label,
-      // Update state is not a preference: hiding it is how a user misses that
-      // their client is behind. Listed in the menu, but locked on.
-      lockedVisible: true,
-      onSelect: () => openUpdateOverlayFor('client'),
-      title: status.tooltip,
-      toggleLabel: copy.toggleVersion,
-      variant: 'action'
-    }
-  }, [
-    desktopVersion?.appVersion,
-    connection?.mode,
-    copy,
-    updateApply.applying,
-    updateApply.message,
-    updateApply.stage,
-    updateStatus?.behind,
-    updateStatus?.branch,
-    updateStatus?.currentSha,
-    updateStatus?.updateAvailable
-  ])
-
-  const backendVersionItem = useMemo<StatusbarItem | null>(() => {
-    if (connection?.mode !== 'remote') {
-      return null
-    }
-
-    const applying = backendUpdateApply.applying || backendUpdateApply.stage === 'restart'
-
-    const status = resolveVersionStatus({
-      applying,
-      applyMessage: backendUpdateApply.message,
-      behind: backendUpdateStatus?.behind ?? 0,
-      copy,
-      remote: true,
-      restarting: backendUpdateApply.stage === 'restart',
-      target: 'backend',
-      updateAvailable: backendUpdateStatus?.updateAvailable,
-      version: statusSnapshot?.version
-    })
-
-    return {
-      className: status.hasUpdate ? 'text-primary hover:text-primary' : undefined,
-      hidden: status.unknown,
-      icon: applying ? <Loader2 className="size-3 animate-spin" /> : <Hash className="size-3" />,
-      id: 'version-backend',
-      label: status.label,
-      lockedVisible: true,
-      onSelect: () => openUpdateOverlayFor('backend'),
-      title: status.tooltip,
-      toggleLabel: copy.toggleBackendVersion,
-      variant: 'action'
-    }
-  }, [
-    connection?.mode,
-    statusSnapshot?.version,
-    backendUpdateStatus?.behind,
-    backendUpdateStatus?.updateAvailable,
-    backendUpdateApply.applying,
-    backendUpdateApply.message,
-    backendUpdateApply.stage,
-    copy
-  ])
 
   const coreLeftStatusbarItems = useMemo<readonly StatusbarItem[]>(
     () => [
@@ -611,28 +498,13 @@ export function useStatusbarItems({
         ...approvalModeItem,
         hidden: gatewayState !== 'open',
         toggleLabel: copy.toggleApprovalMode
-      },
-      {
-        actionId: 'view.showTerminal',
-        className: `w-7 justify-center px-0${terminalShowing ? ' bg-accent/55 text-foreground' : ''}`,
-        hidden: !chatOpen,
-        icon: <Terminal className="size-3.5" />,
-        id: 'terminal',
-        onSelect: () => togglePaneVisible('terminal'),
-        title: terminalShowing ? copy.hideTerminal : copy.showTerminal,
-        toggleLabel: copy.toggleTerminal,
-        variant: 'action'
-      },
-      clientVersionItem,
-      ...(backendVersionItem ? [backendVersionItem] : [])
+      }
     ],
     [
       approvalModeItem,
-      backendVersionItem,
       busy,
       cacheHit,
       chatOpen,
-      clientVersionItem,
       contextBar,
       contextBreakdown,
       contextBreakdownLoading,

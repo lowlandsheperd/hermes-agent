@@ -1004,7 +1004,7 @@ export const zh: Translations = {
     // v2 多连接注册表：设置 → 网关。
     connections: {
       title: '已注册网关',
-      intro: '管理通过 URL 和 SSH 连接的服务器。',
+      intro: '管理通过 URL 连接的服务器。',
       stagedNote:
         '可在“会话”侧边栏切换网关。配置档案、聊天、消息和定时任务归属于各自网关；其他网关上的工作会继续运行。',
       launchModeTitle: '启动时返回上次使用网关的会话视图',
@@ -1086,7 +1086,7 @@ export const zh: Translations = {
       unavailableDesc: '桌面 IPC 桥未暴露网关设置。',
       title: '网关连接',
       envOverride: '环境变量覆盖',
-      intro: '通过 URL 或 SSH 连接已有的 Hermes 服务器。Profile 从所连接的服务器获取。',
+      intro: '通过 URL 连接已有的 Hermes 服务器。Profile 从所连接的服务器获取。',
       envOverrideTitle: '环境变量正在控制此桌面会话。',
       envOverrideDesc: '取消设置 HERMES_DESKTOP_REMOTE_URL 和 HERMES_DESKTOP_REMOTE_TOKEN 后才会使用下面保存的设置。',
       modeTitle: '连接模式',

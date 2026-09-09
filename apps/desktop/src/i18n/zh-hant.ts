@@ -829,7 +829,7 @@ export const zhHant = defineLocale({
       unavailableDesc: '桌面 IPC 橋接器未公開閘道設定。',
       title: '閘道連線',
       envOverride: '環境變數覆寫',
-      intro: '透過 URL 或 SSH 連線至現有的 Hermes 伺服器。Profile 從連線的伺服器取得。',
+      intro: '透過 URL 連線至現有的 Hermes 伺服器。Profile 從連線的伺服器取得。',
       envOverrideTitle: '環境變數正在控制此桌面工作階段。',
       envOverrideDesc: '取消設定 HERMES_DESKTOP_REMOTE_URL 和 HERMES_DESKTOP_REMOTE_TOKEN 後才會使用下方儲存的設定。',
       localTitle: '本機閘道',

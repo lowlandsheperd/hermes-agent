@@ -19,20 +19,7 @@ import {
 } from '@/lib/connection-display'
 import { deriveRemoteAuthProviderShape } from '@/lib/desktop-remote-auth'
 import { triggerHaptic } from '@/lib/haptics'
-import {
-  Check,
-  Cloud,
-  Globe,
-  Loader2,
-  LogIn,
-  Monitor,
-  Pencil,
-  Plus,
-  RefreshCw,
-  SearchIcon,
-  Terminal,
-  Trash2
-} from '@/lib/icons'
+import { Check, Cloud, Globe, Loader2, LogIn, Monitor, Pencil, Plus, SearchIcon, Terminal, Trash2 } from '@/lib/icons'
 import { coerceRemoteUrlScheme } from '@/lib/remote-url'
 import { $activeConnectionId, setConnectionsRegistry } from '@/store/connections'
 import { notify, notifyError } from '@/store/notifications'
@@ -247,7 +234,6 @@ export function ConnectionsRegistrySection() {
   const [removeTarget, setRemoveTarget] = useState<DesktopRegistryConnection | null>(null)
   const [plainTextConfirm, setPlainTextConfirm] = useState(false)
   const [launchModeBusy, setLaunchModeBusy] = useState(false)
-  const [updatingAll, setUpdatingAll] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const searchInputRef = useRef<HTMLInputElement>(null)
   const pendingSearchTopRef = useRef<null | number>(null)
@@ -564,34 +550,6 @@ export function ConnectionsRegistrySection() {
     [bridge, s.testFailed, s.testOk]
   )
 
-  // Fan out `hermes update` to every eligible source; per-connection results
-  // land as individual toasts so one dead box doesn't hide the others.
-  const updateAll = useCallback(async () => {
-    if (!bridge?.updateAll) {
-      return
-    }
-
-    setUpdatingAll(true)
-
-    try {
-      const { results } = await bridge.updateAll()
-
-      for (const row of results) {
-        if (row.ok) {
-          notify({ title: row.label, message: row.detail || s.updateAllDone })
-        } else if (row.skipped && row.reason === 'cloud-managed') {
-          notify({ title: row.label, message: s.updateSkippedCloud })
-        } else {
-          notifyError(new Error(row.error || row.detail || row.reason || row.label), s.updateAllFailed)
-        }
-      }
-    } catch (err) {
-      notifyError(err, s.updateAllFailed)
-    } finally {
-      setUpdatingAll(false)
-    }
-  }, [bridge, s.updateAllDone, s.updateAllFailed, s.updateSkippedCloud])
-
   const kindMeta: Record<DesktopConnectionKind, { label: string; desc: string }> = {
     cloud: { desc: s.kindCloudDesc, label: s.kindCloud },
     local: { desc: s.kindLocalDesc, label: s.kindLocal },
@@ -759,7 +717,7 @@ export function ConnectionsRegistrySection() {
             {/* Kind is fixed once created (buttons disable on edit). On create
                 every kind is offered; Local is disabled while the managed
                 local entry exists (the registry holds at most one). */}
-            {(editor.id ? ([editor.kind] as const) : (['remote', 'ssh'] as const)).map(kind => (
+            {(editor.id ? ([editor.kind] as const) : (['remote'] as const)).map(kind => (
               <Button
                 disabled={Boolean(editor.id) || (kind === 'local' && hasLocal)}
                 key={kind}
@@ -965,27 +923,6 @@ export function ConnectionsRegistrySection() {
           >
             <Plus className="size-3.5" /> {s.addConnection}
           </Button>
-          {bridge?.updateAll && (registry?.connections.length ?? 0) > 1 && (
-            <Button
-              disabled={updatingAll}
-              onClick={() => {
-                triggerHaptic('selection')
-                void updateAll()
-              }}
-              size="sm"
-              variant="outline"
-            >
-              {updatingAll ? (
-                <>
-                  <Loader2 className="size-3.5 animate-spin" /> {s.updateAllRunning}
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="size-3.5" /> {s.updateAll}
-                </>
-              )}
-            </Button>
-          )}
         </div>
       )}
 

@@ -1,6 +1,6 @@
 import { atom, computed } from 'nanostores'
 
-import { readKey, writeKey } from '@/lib/storage'
+import { writeKey } from '@/lib/storage'
 import { $currentCwd } from '@/store/session'
 
 import { setTerminalTakeover } from '../store'
@@ -83,35 +83,7 @@ function sanitizePersistedTerminal(value: unknown): PersistedTerminalEntry | nul
 }
 
 function loadPersistedTerminals(): PersistedTerminalState {
-  const fallback: PersistedTerminalState = { activeTerminalId: null, terminals: [] }
-  const raw = readKey(TERMINALS_STORAGE_KEY)
-
-  if (!raw) {
-    return fallback
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as unknown
-
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return fallback
-    }
-
-    const record = parsed as Record<string, unknown>
-
-    const terminals = Array.isArray(record.terminals)
-      ? record.terminals.map(sanitizePersistedTerminal).filter((term): term is PersistedTerminalEntry => Boolean(term))
-      : []
-
-    const active =
-      typeof record.activeTerminalId === 'string' && terminals.some(term => term.id === record.activeTerminalId)
-        ? record.activeTerminalId
-        : (terminals[0]?.id ?? null)
-
-    return { activeTerminalId: active, terminals }
-  } catch {
-    return fallback
-  }
+  return { terminals: [], activeTerminalId: null }
 }
 
 // Persist synchronously on every change (the app-wide convention — see panes.ts
@@ -160,11 +132,7 @@ const newId = () =>
 /** Append a fresh terminal and focus it. Captures the current cwd once (its only
  *  tie to session/project state); pass an explicit cwd to override. Returns the id. */
 export function createTerminal(cwd: string = $currentCwd.get()): string {
-  const id = newId()
-  $terminals.set([...$terminals.get(), { id, title: 'Terminal', auto: true, cwd, kind: 'user' }])
-  $activeTerminalId.set(id)
-
-  return id
+  throw new Error('Terminal is unavailable for URL connections.')
 }
 
 // Procs we've already surfaced a tab for — so closing an agent tab doesn't
@@ -176,21 +144,7 @@ const findByProc = (procId: string) => $terminals.get().find(term => term.procId
 /** Auto-surface an agent background process as a read-only tab — once. Returns
  *  the tab id, or null if it was already surfaced and the user has since closed it. */
 export function ensureAgentTerminal(procId: string, title: string): string | null {
-  const existing = findByProc(procId)
-
-  if (existing) {
-    return existing.id
-  }
-
-  if (surfacedProcs.has(procId)) {
-    return null
-  }
-
-  surfacedProcs.add(procId)
-  const id = newId()
-  $terminals.set([...$terminals.get(), { id, title: title || 'agent', auto: false, cwd: '', kind: 'agent', procId }])
-
-  return id
+  return null
 }
 
 /** Open + focus an agent process's tab (the status-stack link), recreating it if
@@ -212,11 +166,7 @@ export function openAgentTerminal(procId: string, title: string): void {
 /** Guarantee at least one tab exists when the pane opens.
  *  If a status-stack click already opened an agent tab, don't create a
  *  second, unrelated user shell just because the pane became visible. */
-export function ensureTerminal(): void {
-  if ($terminals.get().length === 0) {
-    createTerminal()
-  }
-}
+export function ensureTerminal(): void {}
 
 export function selectTerminal(id: string): void {
   if ($terminals.get().some(term => term.id === id)) {

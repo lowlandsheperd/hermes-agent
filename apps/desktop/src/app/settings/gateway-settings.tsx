@@ -10,7 +10,7 @@ import type { DesktopAuthProvider, DesktopCloudAgent, DesktopCloudOrg, DesktopCo
 import { useI18n } from '@/i18n'
 import { ExternalLink } from '@/lib/external-link'
 import type { Monitor } from '@/lib/icons'
-import { AlertCircle, Check, FileText, Globe, HelpCircle, Loader2, LogIn, RefreshCw, Terminal } from '@/lib/icons'
+import { AlertCircle, Check, FileText, Globe, HelpCircle, Loader2, LogIn, RefreshCw } from '@/lib/icons'
 import { coerceRemoteUrlScheme } from '@/lib/remote-url'
 import { selectableCardClass } from '@/lib/selectable-card'
 import { cn } from '@/lib/utils'
@@ -24,7 +24,6 @@ import { notify, notifyError, readableError } from '@/store/notifications'
 
 import { ConnectionsRegistrySection } from './connections-registry'
 import { CONTROL_TEXT } from './constants'
-import { ManagedUpdatesSection } from './managed-updates-section'
 import { EmptyState, ListRow, Pill, SettingsContent, SettingsSkeleton, ToggleRow } from './primitives'
 import { enrichSelectedSshHost, selectSshHost } from './ssh-host-selection'
 
@@ -87,7 +86,7 @@ export function normalizeGatewaySettingsState(
 
   const defined = Object.fromEntries(Object.entries(config).filter(([, value]) => value != null))
 
-  return { ...EMPTY_STATE, ...defined, mode: config.mode === 'ssh' ? 'ssh' : 'remote' }
+  return { ...EMPTY_STATE, ...defined, mode: 'remote' }
 }
 
 export function savedCloudConnectionUrl(config: Pick<GatewaySettingsState, 'mode' | 'remoteUrl'>): string {
@@ -1137,15 +1136,6 @@ export function GatewaySettings({ embedded = false }: { embedded?: boolean } = {
             onSelect={() => setState(current => ({ ...current, mode: 'remote' }))}
             title={g.remoteTitle}
           />
-          <ModeCard
-            active={state.mode === 'ssh'}
-            description={g.sshDesc}
-            disabled={state.envOverride}
-            hint={g.sshTrustHint}
-            icon={Terminal}
-            onSelect={() => setState(current => ({ ...current, mode: 'ssh' }))}
-            title={g.sshTitle}
-          />
         </div>
       </div>
 
@@ -1611,10 +1601,6 @@ export function GatewaySettings({ embedded = false }: { embedded?: boolean } = {
       {embedded ? null : (
         <>
           <ConnectionsRegistrySection />
-          {/* Per-connection driver for the transactional managed SSH update
-              engine (#95942). Renders only when SSH sources are registered and
-              the Electron main exposes connections.updateManaged. */}
-          <ManagedUpdatesSection />
         </>
       )}
 

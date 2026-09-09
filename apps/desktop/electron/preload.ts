@@ -194,10 +194,10 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
     setLaunchMode: mode => ipcRenderer.invoke('hermes:connections:set-launch-mode', mode),
     setLastUsed: id => ipcRenderer.invoke('hermes:connections:set-last-used', id),
     test: id => ipcRenderer.invoke('hermes:connections:test', id),
-    updateManaged: id => ipcRenderer.invoke('hermes:connections:update-managed', id),
+    updateManaged: undefined,
     // Fan out `hermes update` to every eligible registered connection.
     // Optional excludeIds skips rows the caller updates through another path.
-    updateAll: options => ipcRenderer.invoke('hermes:connections:update-all', options),
+    updateAll: undefined,
     // Registry lifecycle push (main → renderer): a connection was removed or
     // materially edited, so secondaries scoped to it must be disposed (and,
     // for edits, re-dialed at the new target).
@@ -208,8 +208,8 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
       return () => ipcRenderer.removeListener('hermes:connections:changed', listener)
     }
   },
-  sshConfigHosts: () => ipcRenderer.invoke('hermes:ssh-config:hosts'),
-  sshResolveHost: host => ipcRenderer.invoke('hermes:ssh-config:resolve', host),
+  sshConfigHosts: undefined,
+  sshResolveHost: undefined,
   probeConnectionConfig: remoteUrl => ipcRenderer.invoke('hermes:connection-config:probe', remoteUrl),
   oauthLoginConnectionConfig: remoteUrl => ipcRenderer.invoke('hermes:connection-config:oauth-login', remoteUrl),
   oauthLogoutConnectionConfig: remoteUrl => ipcRenderer.invoke('hermes:connection-config:oauth-logout', remoteUrl),
@@ -356,28 +356,7 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
       createPr: repoPath => ipcRenderer.invoke('hermes:git:review:createPr', repoPath)
     }
   },
-  terminal: {
-    attach: id => ipcRenderer.invoke('hermes:terminal:attach', id),
-    cwd: id => ipcRenderer.invoke('hermes:terminal:cwd', id),
-    dispose: id => ipcRenderer.invoke('hermes:terminal:dispose', id),
-    resize: (id, size) => ipcRenderer.invoke('hermes:terminal:resize', id, size),
-    start: options => ipcRenderer.invoke('hermes:terminal:start', options),
-    write: (id, data) => ipcRenderer.invoke('hermes:terminal:write', id, data),
-    onData: (id, callback) => {
-      const channel = `hermes:terminal:${id}:data`
-      const listener = (_event, payload) => callback(payload)
-      ipcRenderer.on(channel, listener)
-
-      return () => ipcRenderer.removeListener(channel, listener)
-    },
-    onExit: (id, callback) => {
-      const channel = `hermes:terminal:${id}:exit`
-      const listener = (_event, payload) => callback(payload)
-      ipcRenderer.on(channel, listener)
-
-      return () => ipcRenderer.removeListener(channel, listener)
-    }
-  },
+  terminal: undefined,
   onClosePreviewRequested: callback => {
     const listener = () => callback()
     ipcRenderer.on('hermes:close-preview-requested', listener)
@@ -499,18 +478,7 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
     summary: () => ipcRenderer.invoke('hermes:uninstall:summary'),
     run: mode => ipcRenderer.invoke('hermes:uninstall:run', { mode })
   },
-  updates: {
-    check: () => ipcRenderer.invoke('hermes:updates:check'),
-    apply: opts => ipcRenderer.invoke('hermes:updates:apply', opts),
-    getBranch: () => ipcRenderer.invoke('hermes:updates:branch:get'),
-    setBranch: name => ipcRenderer.invoke('hermes:updates:branch:set', name),
-    onProgress: callback => {
-      const listener = (_event, payload) => callback(payload)
-      ipcRenderer.on('hermes:updates:progress', listener)
-
-      return () => ipcRenderer.removeListener('hermes:updates:progress', listener)
-    }
-  },
+  updates: undefined,
   themes: {
     fetchMarketplace: id => ipcRenderer.invoke('hermes:vscode-theme:fetch', id),
     searchMarketplace: query => ipcRenderer.invoke('hermes:vscode-theme:search', query)

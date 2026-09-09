@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 
 import { GatewaySettings } from '@/app/settings/gateway-settings'
@@ -26,11 +26,11 @@ function bridge(mode = 'local') {
   return desktop
 }
 
-test('first run offers URL and SSH immediately with no installer or Cloud choice', async () => {
+test('first run offers only URL immediately with no installer or Cloud choice', async () => {
   const desktop = bridge()
   render(<DesktopInstallOverlay />)
   expect(await screen.findByText('Remote gateway')).toBeTruthy()
-  expect(screen.getByText('Connect via SSH')).toBeTruthy()
+  expect(screen.queryByText('Connect via SSH')).toBeNull()
   expect(screen.queryByText('Local gateway')).toBeNull()
   expect(screen.queryByText('Hermes Cloud')).toBeNull()
   expect(screen.queryByText('Install locally')).toBeNull()
@@ -38,12 +38,12 @@ test('first run offers URL and SSH immediately with no installer or Cloud choice
   expect(desktop.cloud.status).not.toHaveBeenCalled()
 })
 
-test('a saved Cloud mode opens as URL configuration and can switch only to SSH', async () => {
-  const desktop = bridge('cloud')
+test('a saved SSH mode opens as URL configuration without SSH controls', async () => {
+  const desktop = bridge('ssh')
   render(<GatewaySettings embedded />)
   await screen.findByText('Remote gateway')
-  fireEvent.click(screen.getByText('Connect via SSH'))
-  await waitFor(() => expect(screen.getByText('Host')).toBeTruthy())
+  expect(screen.queryByText('Connect via SSH')).toBeNull()
+  expect(screen.queryByText('Host')).toBeNull()
   expect(screen.queryByText('Local gateway')).toBeNull()
   expect(screen.queryByText('Hermes Cloud')).toBeNull()
   expect(desktop.cloud.status).not.toHaveBeenCalled()
