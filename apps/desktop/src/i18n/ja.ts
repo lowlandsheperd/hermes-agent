@@ -133,11 +133,10 @@ export const ja = defineLocale({
       back: '戻る',
       openLogs: 'ログを開く',
       repairHint: '修復はインストーラーを再実行します。新しいマシンでは数分かかる場合があります。',
-      remoteSignInHint: signInLabel =>
-        `保存済みのリモートブラウザセッションからサインアウトし、${signInLabel}を開きます。代わりにバンドルされたバックエンドに切り替えるには「ローカルゲートウェイを使用」を選択してください。`,
+      remoteSignInHint: (_signInLabel: string) =>
+        '保存済みのセッションからサインアウトし、再度サインインしてください。',
       signOutAndSignIn: 'サインアウトして再サインイン',
-      remoteFailureHint:
-        '「ゲートウェイ設定」でゲートウェイの URL とサインインを確認するか、ローカルゲートウェイに切り替えてください。',
+      remoteFailureHint: 'サーバーのアドレス、SSH 設定、認証情報を確認して再接続してください。',
       cloudDownTitle: 'Nous Cloud エージェントが停止しています',
       cloudDownDescription:
         'このゲートウェイが接続している Nous 管理のクラウドエージェントがサーバーエラーを返しています。ここから再起動することはできません。ステータスを確認するか、ローカルゲートウェイに切り替えるか、サポートに連絡してください。',
@@ -851,8 +850,7 @@ export const ja = defineLocale({
       unavailableDesc: 'デスクトップ IPC ブリッジはゲートウェイ設定を公開していません。',
       title: 'ゲートウェイ接続',
       envOverride: 'env オーバーライド',
-      intro:
-        'Hermes Desktop はデフォルトで独自のローカルゲートウェイを起動します。別のマシンや信頼できるプロキシの背後で既に動作している Hermes バックエンドをこのアプリで制御する場合は、リモートゲートウェイを使用してください。ゲートウェイ接続はマシン単位の設定で、プロファイルは接続したゲートウェイから検出されます。',
+      intro: 'URL または SSH で既存の Hermes サーバーに接続します。プロファイルは接続先から取得します。',
       envOverrideTitle: '環境変数がこのデスクトップセッションを制御しています。',
       envOverrideDesc:
         '保存された設定を使用するには HERMES_DESKTOP_REMOTE_URL と HERMES_DESKTOP_REMOTE_TOKEN の設定を解除してください。',

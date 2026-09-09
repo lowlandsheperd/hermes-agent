@@ -82,7 +82,7 @@ describe('BootFailureOverlay', () => {
     render(<BootFailureOverlay />)
     // No connection config stub → treated as a local failure.
     expect(screen.getByRole('button', { name: /retry/i })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /repair/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /repair/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /use local gateway/i })).toBeNull()
   })
 
@@ -93,7 +93,7 @@ describe('BootFailureOverlay', () => {
       render(<BootFailureOverlay />)
       await waitFor(() => expect(screen.queryByRole('button', { name: /repair/i })).toBeNull())
       expect(screen.getByRole('button', { name: /gateway settings/i })).toBeTruthy()
-      expect(screen.getByRole('button', { name: /use local gateway/i })).toBeTruthy()
+      expect(screen.queryByRole('button', { name: /use local gateway/i })).toBeNull()
     } finally {
       restore()
     }
@@ -219,7 +219,7 @@ describe('BootFailureOverlay', () => {
       // actionable paths are Gateway settings + Use local gateway.
       expect(screen.queryByRole('button', { name: /repair/i })).toBeNull()
       expect(screen.getByRole('button', { name: /gateway settings/i })).toBeTruthy()
-      expect(screen.getByRole('button', { name: /use local gateway/i })).toBeTruthy()
+      expect(screen.queryByRole('button', { name: /use local gateway/i })).toBeNull()
       // The electron-built error message (portal / local mode / Discord) is
       // still surfaced in the error box.
       expect(screen.getByText(/ares-3009\.agents\.nousresearch\.com/i)).toBeTruthy()

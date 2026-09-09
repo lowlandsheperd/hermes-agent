@@ -131,10 +131,9 @@ export const zh: Translations = {
       back: '返回',
       openLogs: '打开日志',
       repairHint: '修复会重新运行安装器，在新机器上可能需要几分钟。',
-      remoteSignInHint: signInLabel =>
-        `先退出已保存的远程浏览器会话，然后打开${signInLabel}。也可以使用本地网关切换到随应用提供的后端。`,
+      remoteSignInHint: (_signInLabel: string) => '退出已保存的登录状态，然后重新登录。',
       signOutAndSignIn: '退出并重新登录',
-      remoteFailureHint: '在“网关设置”中检查网关 URL 和登录，或切换到本地网关。',
+      remoteFailureHint: '检查服务器地址、SSH 设置及认证信息，然后重新连接。',
       cloudDownTitle: 'Nous Cloud 代理已宕机',
       cloudDownDescription:
         '此网关连接的 Nous 托管云代理正在返回服务器错误。无法在此处重启——请检查其状态、切换到本地网关或获取支持。',
@@ -1005,7 +1004,7 @@ export const zh: Translations = {
     // v2 多连接注册表：设置 → 网关。
     connections: {
       title: '已注册网关',
-      intro: '管理本机以及通过远程、SSH 或 Hermes Cloud 连接可访问的每个 Hermes 网关。',
+      intro: '管理通过 URL 和 SSH 连接的服务器。',
       stagedNote:
         '可在“会话”侧边栏切换网关。配置档案、聊天、消息和定时任务归属于各自网关；其他网关上的工作会继续运行。',
       launchModeTitle: '启动时返回上次使用网关的会话视图',
@@ -1087,8 +1086,7 @@ export const zh: Translations = {
       unavailableDesc: '桌面 IPC 桥未暴露网关设置。',
       title: '网关连接',
       envOverride: '环境变量覆盖',
-      intro:
-        'Hermes Desktop 默认会启动自己的本地网关。当你希望此应用控制另一台机器上或可信代理后的现有 Hermes 后端时，可以使用远程网关。网关连接属于本机级设置；profile 是从所连接的网关中发现的。',
+      intro: '通过 URL 或 SSH 连接已有的 Hermes 服务器。Profile 从所连接的服务器获取。',
       envOverrideTitle: '环境变量正在控制此桌面会话。',
       envOverrideDesc: '取消设置 HERMES_DESKTOP_REMOTE_URL 和 HERMES_DESKTOP_REMOTE_TOKEN 后才会使用下面保存的设置。',
       modeTitle: '连接模式',

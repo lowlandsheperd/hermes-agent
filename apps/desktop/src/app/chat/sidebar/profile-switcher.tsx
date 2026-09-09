@@ -82,11 +82,7 @@ import {
   setShowAllProfiles,
   sortByProfileOrder
 } from '@/store/profile'
-import {
-  $profileRemoteOverrides,
-  openRemoteOverrideDialog,
-  refreshProfileRemoteOverrides
-} from '@/store/profile-remote-override'
+import { $profileRemoteOverrides, refreshProfileRemoteOverrides } from '@/store/profile-remote-override'
 import { runExportProfileFlow, runImportProfileFlow } from '@/store/profile-share'
 import type { ProfileInfo } from '@/types/hermes'
 
@@ -97,7 +93,6 @@ import { PROFILES_ROUTE, SETTINGS_ROUTE } from '../../routes'
 
 import { ConnectionGlyph } from './connection-glyph'
 import { buildRestGroups, countRestAgents, type FleetAgent, type FleetGroup, fleetRouteKey } from './fleet-rail'
-import { ProfileRemoteOverrideDialog } from './profile-remote-override-dialog'
 import { useFleetRoster } from './use-fleet-roster'
 import { useProfilePrewarm } from './use-profile-prewarm'
 import { useProfileRailRefreshOnActive } from './use-profile-rail-refresh-on-active'
@@ -375,7 +370,7 @@ export function ProfileRail() {
                   // gateway registry; once the rail shows machines directly
                   // it only confuses, so it is offered on single-gateway
                   // setups only.
-                  onConnectRemote={multipleConnections ? undefined : () => openRemoteOverrideDialog(profile.name)}
+                  onConnectRemote={undefined}
                   onDelete={() => setPendingDelete(profile)}
                   onEditSoul={() => setPendingSoul(profile.name)}
                   onRecolor={color => setProfileColor(profile.name, color)}
@@ -590,8 +585,6 @@ export function ProfileRail() {
         profileName={pendingRestSoul?.profile ?? null}
         scope={pendingRestSoul ? restScope(pendingRestSoul) : undefined}
       />
-
-      <ProfileRemoteOverrideDialog profileNames={profileNames} />
     </div>
   )
 }

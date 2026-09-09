@@ -131,10 +131,9 @@ export const zhHant = defineLocale({
       back: '返回',
       openLogs: '開啟記錄',
       repairHint: '修復會重新執行安裝程式，在新機器上可能需要幾分鐘。',
-      remoteSignInHint: signInLabel =>
-        `先登出已儲存的遠端瀏覽器工作階段，然後開啟${signInLabel}。使用本機閘道可切換至內建後端。`,
+      remoteSignInHint: (_signInLabel: string) => '登出已儲存的工作階段，然後重新登入。',
       signOutAndSignIn: '登出並重新登入',
-      remoteFailureHint: '在「閘道設定」中檢查閘道 URL 與登入，或切換至本機閘道。',
+      remoteFailureHint: '檢查伺服器位址、SSH 設定及驗證資訊，然後重新連線。',
       cloudDownTitle: 'Nous Cloud 代理已停機',
       cloudDownDescription:
         '此閘道連線的 Nous 託管雲端代理正在回傳伺服器錯誤。無法在此處重新啟動——請檢查其狀態、切換至本機閘道，或取得支援。',
@@ -830,8 +829,7 @@ export const zhHant = defineLocale({
       unavailableDesc: '桌面 IPC 橋接器未公開閘道設定。',
       title: '閘道連線',
       envOverride: '環境變數覆寫',
-      intro:
-        'Hermes Desktop 預設會啟動自己的本機閘道。如果您希望此應用程式控制另一台機器或可信代理後面已執行的 Hermes 後端，請使用遠端閘道。閘道連線屬於本機層級設定；設定檔是從已連線的閘道中探索出來的。',
+      intro: '透過 URL 或 SSH 連線至現有的 Hermes 伺服器。Profile 從連線的伺服器取得。',
       envOverrideTitle: '環境變數正在控制此桌面工作階段。',
       envOverrideDesc: '取消設定 HERMES_DESKTOP_REMOTE_URL 和 HERMES_DESKTOP_REMOTE_TOKEN 後才會使用下方儲存的設定。',
       localTitle: '本機閘道',

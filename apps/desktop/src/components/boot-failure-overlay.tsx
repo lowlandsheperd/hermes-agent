@@ -8,7 +8,7 @@ import { LogView } from '@/components/ui/log-view'
 import type { DesktopConnectionConfig } from '@/global'
 import { useI18n } from '@/i18n'
 import { openExternalLink } from '@/lib/external-link'
-import { ChevronLeft, ExternalLink, FileText, Loader2, LogIn, RefreshCw, SlidersHorizontal, Wrench } from '@/lib/icons'
+import { ChevronLeft, ExternalLink, FileText, Loader2, LogIn, RefreshCw, SlidersHorizontal } from '@/lib/icons'
 import { $desktopBoot } from '@/store/boot'
 import { notify, notifyError } from '@/store/notifications'
 import { $desktopOnboarding } from '@/store/onboarding'
@@ -150,19 +150,6 @@ export function BootFailureOverlay() {
     window.location.reload()
   }
 
-  const repair = async () => {
-    setBusy('repair')
-    await window.hermesDesktop?.repairBootstrap().catch(() => undefined)
-    window.location.reload()
-  }
-
-  const switchToLocalGateway = async () => {
-    setBusy('local')
-    // Soft apply: tears down the primary and re-dials in place (shell stays).
-    await window.hermesDesktop?.applyConnectionConfig({ mode: 'local' }).catch(() => undefined)
-    setBusy(null)
-  }
-
   // Clear this gateway's stale auth first, then re-establish it through the
   // connection's owning login flow. Hermes Cloud must reuse its portal session
   // and per-agent cascade; generic remote gateways use native/embedded OAuth.
@@ -265,14 +252,6 @@ export function BootFailureOverlay() {
     busy: 'retry'
   }
 
-  const localAction: RecoveryAction = {
-    key: 'local',
-    label: copy.useLocalGateway,
-    onClick: () => void switchToLocalGateway(),
-    variant: 'secondary',
-    busy: 'local'
-  }
-
   let actions: RecoveryAction[]
   let hint: string
   // The electron boot path flags a Nous Cloud backend-down (502/503/504) with
@@ -290,8 +269,7 @@ export function BootFailureOverlay() {
         icon: <LogIn />,
         busy: 'signin'
       },
-      { ...settingsAction, variant: 'secondary' },
-      localAction
+      { ...settingsAction, variant: 'secondary' }
     ]
     hint = copy.remoteSignInHint(label)
   } else if (cloudDown) {
@@ -308,7 +286,6 @@ export function BootFailureOverlay() {
         onClick: () => openExternalLink('https://portal.nousresearch.com'),
         icon: <ExternalLink />
       },
-      localAction,
       { ...retryAction, variant: 'secondary' },
       {
         key: 'discord',
@@ -320,24 +297,11 @@ export function BootFailureOverlay() {
     ]
     hint = copy.cloudDownHint
   } else if (remoteFailure) {
-    actions = [settingsAction, { ...retryAction, variant: 'secondary' }, localAction]
+    actions = [settingsAction, { ...retryAction, variant: 'secondary' }]
     hint = copy.remoteFailureHint
   } else {
-    // Local failure: Use-local is redundant with Retry (both re-target local), so
-    // it's dropped here; keep it for remote failures where it's the fall-back.
-    actions = [
-      retryAction,
-      {
-        key: 'repair',
-        label: copy.repairInstall,
-        onClick: () => void repair(),
-        icon: <Wrench />,
-        variant: 'secondary',
-        busy: 'repair'
-      },
-      { ...settingsAction, variant: 'ghost' }
-    ]
-    hint = copy.repairHint
+    actions = [settingsAction, { ...retryAction, variant: 'secondary' }]
+    hint = copy.remoteFailureHint
   }
 
   if (view === 'connect') {

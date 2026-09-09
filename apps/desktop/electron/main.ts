@@ -133,15 +133,9 @@ import {
   buildAgentRoster,
   connectionDialFieldsChanged,
   mergeConnectionInput,
-  migrateV1ToRegistry,
-  normalizeConnectionInput,
-  normalizeRegistry,
   parseBackendScopeKey,
-  reconcileAppliedGlobalConnection,
-  reconcileRegistryDrift,
   registrySourceOwnsPrimaryBackend,
   rememberSshEnumeration,
-  removeConnection,
   resolvedConnectionId,
   resolveRegistryLocalRoute,
   reuseMatchingPrimarySshBackend,
@@ -158,7 +152,7 @@ import { describeCrashReason, installCrashForensics } from './crash-forensics'
 import { adoptServedDashboardToken } from './dashboard-token'
 import { loadOrCreateInstallationId, sshOwnershipId } from './desktop-installation'
 import { formatDesktopLogLine } from './desktop-log-line'
-import { resolveDesktopRemoteRoute, v1SshTerminalPoolKey } from './desktop-remote-route'
+import { v1SshTerminalPoolKey } from './desktop-remote-route'
 import {
   buildPosixCleanupScript,
   buildWindowsCleanupScript,
@@ -202,7 +196,6 @@ import {
 import { startGatewaysAfterUpdateAbort, stopGatewayBeforeUpdate } from './gateway-stop-before-update'
 import { probeGatewayWebSocket } from './gateway-ws-probe'
 import { registerGitIpc } from './git-ipc'
-import { clearStaleGitLocks } from './gitlock'
 import { readAndConsumeHandoffResult } from './handoff-result'
 import {
   ATTACHMENT_UPLOAD_DEFAULT_MAX_BYTES,
@@ -301,7 +294,6 @@ import { PreviewReachRegistry } from './preview-reach'
 import {
   createPrimaryRemoteConnection,
   FirstRunSetupResetError,
-  runPrimaryBackendStartup
 } from './primary-backend-startup'
 import { rehomePrimaryConnection } from './primary-connection-rehome'
 import {
@@ -328,6 +320,16 @@ import {
 } from './profile-session-routing'
 import { createQuickEntryShortcut, quickEntryWindowBounds, sanitizeQuickEntrySettings } from './quick-entry'
 import { type ActiveWork, mergeActiveWork, normalizeActiveWork, quitPromptFor } from './quit-guard'
+import {
+  migrateV1ToRegistry,
+  normalizeConnectionInput,
+  normalizeRegistry,
+  reconcileAppliedGlobalConnection,
+  removeConnection,
+  resolveClientRemoteRoute as resolveDesktopRemoteRoute,
+  runRemoteClientStartup as runPrimaryBackendStartup
+} from './remote-client-connections'
+import { assertRemoteConnectionKind, rejectLocalRuntime } from './remote-client-policy'
 import * as remoteLifecycle from './remote-lifecycle'
 import {
   attachPowerResumeRemoteRevalidation,
@@ -382,13 +384,7 @@ import {
   windowOpacityFor,
   windowOpacityOptions
 } from './translucency'
-import {
-  compareApiUrl,
-  parseCompareBehindCount,
-  resolveBehindCount,
-  resolveCommitLogSelection,
-  shouldCountCommits
-} from './update-count'
+import { compareApiUrl, parseCompareBehindCount, resolveCommitLogSelection } from './update-count'
 import { waitForUpdateClearance } from './update-gate'
 import { readLiveUpdateMarker, updateHandoffConflict, writeUpdateMarker } from './update-marker'
 import { isOfficialSshRemote, OFFICIAL_REPO_HTTPS_URL } from './update-remote'
@@ -2207,6 +2203,7 @@ async function waitForFirstRunSetupChoice(backend) {
 }
 
 function continueFirstRunLocalBootstrap() {
+  rejectLocalRuntime()
   getFirstRunSetupGate().continueLocal()
 }
 
@@ -3138,151 +3135,11 @@ async function resolveHealedBranch(updateRoot, branch) {
 }
 
 async function checkUpdates() {
-  const updateRoot = resolveUpdateRoot()
-  let { branch } = readDesktopUpdateConfig()
-  const gitDir = path.join(updateRoot, '.git')
-
-  if (!directoryExists(gitDir)) {
-    return {
-      supported: false,
-      reason: 'not-a-git-checkout',
-      message: `${updateRoot} isn't a git checkout — desktop self-update only runs against a source install.`,
-      hermesRoot: updateRoot,
-      branch
-    }
-  }
-
-  branch = await resolveHealedBranch(updateRoot, branch)
-  const originUrl = await getOriginUrl(updateRoot)
-
-  if (isOfficialSshRemote(originUrl)) {
-    const git = args => runGit(args, { cwd: updateRoot }).then(r => r.stdout.trim())
-
-    const [currentSha, target, dirtyStr, currentBranch] = await Promise.all([
-      git(['rev-parse', 'HEAD']),
-      runGit(['ls-remote', OFFICIAL_REPO_HTTPS_URL, `refs/heads/${branch}`], { cwd: updateRoot }),
-      git(['status', '--porcelain']),
-      git(['rev-parse', '--abbrev-ref', 'HEAD'])
-    ])
-
-    const targetSha = firstLine(target.stdout).split(/\s+/)[0] || ''
-
-    if (target.code !== 0 || !targetSha) {
-      return {
-        supported: true,
-        branch,
-        error: 'fetch-failed',
-        message: firstLine(target.stderr) || 'git ls-remote failed.',
-        hermesRoot: updateRoot,
-        fetchedAt: Date.now()
-      }
-    }
-
-    // Passive SSH-official checks only know tip SHAs (ls-remote) — never
-    // fabricate a "1 commit behind". Recover the exact count via the GitHub
-    // compare API when possible; otherwise behind stays null ("update
-    // available, count unknown") and updateAvailable carries the signal.
-    // ahead_by === 0 with differing tips means the remote tip is reachable
-    // from our HEAD — a local carried commit sitting AHEAD, not behind:
-    // flagging that as an update nudges the user into wiping their work.
-    const tipsEqual = Boolean(currentSha && currentSha === targetSha)
-
-    const sshBehind = tipsEqual
-      ? 0
-      : await fetchCompareBehindCount({ currentSha, originUrl: OFFICIAL_REPO_HTTPS_URL, targetSha })
-
-    const upToDate = tipsEqual || sshBehind === 0
-
-    return {
-      supported: true,
-      branch,
-      currentBranch,
-      behind: upToDate ? 0 : sshBehind,
-      updateAvailable: !upToDate,
-      currentSha,
-      targetSha,
-      commits: [],
-      dirty: dirtyStr.length > 0,
-      hermesRoot: updateRoot,
-      fetchedAt: Date.now()
-    }
-  }
-
-  // Self-heal abandoned git lock files before fetching. A stale
-  // .git/shallow.lock from a crashed/interrupted fetch otherwise fails every
-  // later fetch ("Unable to create '.git/shallow.lock': File exists") and this
-  // check reports 'fetch-failed' forever — git never removes these itself.
-  await clearStaleGitLocks(updateRoot)
-
-  const fetched = await runGit(['fetch', '--quiet', 'origin', branch], { cwd: updateRoot })
-
-  if (fetched.code !== 0) {
-    return {
-      supported: true,
-      branch,
-      error: 'fetch-failed',
-      message: firstLine(fetched.stderr) || 'git fetch failed.',
-      hermesRoot: updateRoot,
-      fetchedAt: Date.now()
-    }
-  }
-
-  const git = args => runGit(args, { cwd: updateRoot }).then(r => r.stdout.trim())
-
-  const [currentSha, targetSha, dirtyStr, currentBranch, shallowStr] = await Promise.all([
-    git(['rev-parse', 'HEAD']),
-    git(['rev-parse', `origin/${branch}`]),
-    git(['status', '--porcelain']),
-    git(['rev-parse', '--abbrev-ref', 'HEAD']),
-    git(['rev-parse', '--is-shallow-repository'])
-  ])
-
-  const isShallow = shallowStr === 'true'
-
-  // A shallow graph cannot provide a trustworthy exact count, even when it has
-  // a visible merge-base. Skip the ancestry walk and use the SHA fallback.
-  const countStr = shouldCountCommits({ isShallow }) ? await git(['rev-list', `HEAD..origin/${branch}`, '--count']) : ''
-
-  // A positive directional ancestry result remains trustworthy in a shallow
-  // graph and prevents a local commit on top of origin from looking outdated.
-  const targetIsAncestorOfHead =
-    isShallow &&
-    currentSha !== targetSha &&
-    (await runGit(['merge-base', '--is-ancestor', `origin/${branch}`, 'HEAD'], { cwd: updateRoot })).code === 0
-
-  let behind = resolveBehindCount({
-    countStr,
-    currentSha,
-    targetSha,
-    isShallow,
-    targetIsAncestorOfHead
-  })
-
-  // Recover the exact count a shallow clone can't compute: the GitHub compare
-  // API knows the full graph regardless of local clone depth. Best-effort —
-  // offline, rate-limited, or non-GitHub origins keep the honest null
-  // ("update available", no fabricated number).
-  if (behind === null) {
-    behind = await fetchCompareBehindCount({ currentSha, originUrl, targetSha })
-  }
-
-  // behind === null means "update available, exact count unknown" (shallow
-  // clone): still list what origin offers — resolveCommitLogSelection keeps
-  // the shallow log to the fetched tip so the range walk can't enumerate the
-  // contaminated ancestry — so "See what's new" stays useful and honest.
-  const commits = behind !== 0 ? await readCommitLog(updateRoot, branch, isShallow) : []
-
   return {
-    supported: true,
-    branch,
-    currentBranch,
-    behind,
-    updateAvailable: behind === null || behind > 0,
-    currentSha,
-    targetSha,
-    commits,
-    dirty: dirtyStr.length > 0,
-    hermesRoot: updateRoot,
+    supported: false,
+    reason: 'remote-client',
+    message: 'Download client updates from the fork releases page.',
+    branch: '',
     fetchedAt: Date.now()
   }
 }
@@ -3946,6 +3803,8 @@ async function releaseBackendLock(updateRoot, tag) {
 // Detection (checkUpdates / commit changelog / "N behind") stays in the UI;
 // only this apply action changed.
 async function applyUpdates(opts: { stopSafeBlockers?: boolean } = {}) {
+  rejectLocalRuntime()
+
   if (updateInFlight) {
     throw new Error('An update is already in progress.')
   }
@@ -4974,6 +4833,7 @@ function createActiveBackend(backendArgs) {
 }
 
 function resolveHermesBackend(backendArgs) {
+  rejectLocalRuntime()
   // 1. Explicit override -- HERMES_DESKTOP_HERMES_ROOT points at a developer
   //    checkout. Honour it as-is (no bootstrap; the user is driving).
   const overrideRoot = process.env.HERMES_DESKTOP_HERMES_ROOT && path.resolve(process.env.HERMES_DESKTOP_HERMES_ROOT)
@@ -5151,6 +5011,8 @@ function resolveHermesBackend(backendArgs) {
 }
 
 async function ensureRuntime(backend) {
+  rejectLocalRuntime()
+
   if (!backend.bootstrap) {
     await advanceBootProgress('runtime.external', `Using ${backend.label}`, 32)
 
@@ -9518,7 +9380,7 @@ function readDesktopConnectionsRegistry() {
   // launch pick sends the window somewhere else. Persist so the repair is a
   // one-time event rather than a recomputation on every read; a failed write
   // still returns the healed registry for this session.
-  const reconciled = reconcileRegistryDrift(registry, readDesktopConnectionConfig())
+  const reconciled = { changed: false, registry }
 
   if (reconciled.changed) {
     registry = reconciled.registry
@@ -9559,7 +9421,7 @@ function preserveCorruptRegistrySidecar() {
     }
 
     rememberLog(
-      `[connections] connections.json could not be parsed; preserved the original file at ${sidecar} and continuing with a local-only registry. No connection data was deleted.`
+      `[connections] connections.json could not be parsed; preserved the original file at ${sidecar} and continuing with an empty connection list. No connection data was deleted.`
     )
   } catch {
     // The read itself failed (missing file, permissions) — nothing to save.
@@ -9567,6 +9429,7 @@ function preserveCorruptRegistrySidecar() {
 }
 
 function writeDesktopConnectionsRegistry(registry) {
+  registry = normalizeRegistry(registry)
   fs.mkdirSync(path.dirname(DESKTOP_CONNECTIONS_REGISTRY_PATH), { recursive: true })
   // Owner-only for the same reason as connection.json: entries carry
   // safeStorage-encrypted tokens plus URLs and SSH host/user/keyPath.
@@ -9795,6 +9658,13 @@ function migrateActiveProfileIfMissing() {
 // override (or an empty "local/inherit" view when the profile has none).
 async function sanitizeDesktopConnectionConfig(config = readDesktopConnectionConfig(), profile = null) {
   const key = connectionScopeKey(profile)
+
+  if (!key) {
+    const registry = readDesktopConnectionsRegistry()
+    const selected = registry.connections.find(connection => connection.id === registry.primary)
+    config = { ...config, mode: selected?.kind || 'remote', remote: selected ? { ...selected, mode: selected.kind } : {} }
+  }
+
   const scoped = key ? config.profiles?.[key] || null : null
   const block = key ? scoped || {} : config.remote || {}
 
@@ -9807,7 +9677,7 @@ async function sanitizeDesktopConnectionConfig(config = readDesktopConnectionCon
   const remoteToken = decryptDesktopSecret(block.token)
   const authMode = normAuthMode(block.authMode)
   const remoteUrl = envOverride ? String(process.env.HERMES_DESKTOP_REMOTE_URL || '') : String(block.url || '')
-  const mode = envOverride ? 'remote' : savedMode === 'ssh' ? 'ssh' : modeIsRemoteLike(savedMode) ? savedMode : 'local'
+  const mode = savedMode === 'ssh' && !envOverride ? 'ssh' : 'remote'
 
   // Whether the OS keyring (safeStorage) can encrypt the saved token. When
   // false the renderer knows to offer the plain-text opt-in in Settings →
@@ -9846,7 +9716,7 @@ async function sanitizeDesktopConnectionConfig(config = readDesktopConnectionCon
     remoteUrl,
     // The persisted Hermes Cloud org (slug/id) for a cloud connection, or '' for
     // remote/local. Lets Settings → Gateway reopen into the same org.
-    cloudOrg: mode === 'cloud' ? String(block.org || '') : '',
+    cloudOrg: '',
     remoteTokenPreview: tokenPreview(remoteToken),
     remoteTokenSet: Boolean(remoteToken),
     // Whether the OS keyring can encrypt a token; drives the plain-text opt-in
@@ -9905,6 +9775,7 @@ function buildRemoteBlock(remoteUrl, authMode, token, org?: string, headers?: ob
 }
 
 function coerceDesktopConnectionConfig(input: any = {}, existing = readDesktopConnectionConfig(), options: any = {}) {
+  assertRemoteConnectionKind(input.mode)
   const persistToken = options.persistToken !== false
   const key = connectionScopeKey(input.profile)
   // 'cloud' and 'remote' both persist a remote-shaped block; 'cloud' is
@@ -11144,6 +11015,8 @@ async function probeRemoteAuthMode(rawUrl) {
 }
 
 async function testDesktopConnectionConfig(input: any = {}) {
+  assertRemoteConnectionKind(input.mode)
+
   if (input.mode === 'ssh') {
     const sshConfig = normalizeSshConfig({
       mode: 'ssh',
@@ -12535,7 +12408,7 @@ function teardownFailedLocalBackend(poolKey: string, entry: any): Promise<void> 
 async function spawnPoolBackend(profile, entry, opts: { forceLocal?: boolean; poolKey?: string } = {}) {
   const poolKey = opts.poolKey || profile
 
-  await reapOrphanedBackendsOnce()
+  // Remote clients do not manage Hermes processes on this computer.
   profileDeletionGate.assertCanStart(profile)
 
   // A profile may point at its OWN remote backend (connection.json
@@ -12561,6 +12434,8 @@ async function spawnPoolBackend(profile, entry, opts: { forceLocal?: boolean; po
       ...getWindowState()
     }
   }
+
+  rejectLocalRuntime()
 
   // Bound the slot wait BELOW the renderer's backend-boot budget (45s): once
   // the renderer has given up on this spawn, a ticket still queued for the
@@ -12893,7 +12768,7 @@ async function startHermes() {
     throw new Error('Hermes Desktop is already running in another window.')
   }
 
-  await reapOrphanedBackendsOnce()
+  // Remote clients do not manage Hermes processes on this computer.
 
   // Latched-failure short-circuit: once bootstrap has failed in this
   // process, every subsequent startHermes() call re-throws the same error
@@ -15214,6 +15089,7 @@ ipcMain.handle('hermes:bootstrap:reset', async () => {
   return { ok: true }
 })
 ipcMain.handle('hermes:bootstrap:repair', async () => {
+  rejectLocalRuntime()
   // Forceful repair: force the next startHermes() through the full installer
   // (refreshing a broken/partial venv) and clear any latched failure + live
   // connection. The renderer reloads afterwards to re-drive the boot flow.
@@ -15425,14 +15301,21 @@ ipcMain.handle('hermes:connections:save', async (_event, payload) => {
 ipcMain.handle('hermes:connections:remove', async (_event, id) => {
   const key = String(id || '')
   managedConnectionUpdateGate.assertCanMutate(key)
-  const registry = removeConnection(readDesktopConnectionsRegistry(), key)
+  const previousRegistry = readDesktopConnectionsRegistry()
+  const registry = removeConnection(previousRegistry, key)
   writeDesktopConnectionsRegistry(registry)
   // Tear down anything the removed connection still had running: pooled
   // backends under its composite keys and any ssh tunnel scopes it owned.
   await stopRegistryConnectionBackends(key)
+
   // And the renderer side: without this push, secondaries scoped to the
   // removed connection keep their WebSocket open (remote/cloud have no local
   // process to kill) and stream ghost events until page reload.
+  if (previousRegistry.primary === key) {
+    await teardownPrimaryBackendAndWait({ soft: true })
+    sendConnectionApplied()
+  }
+
   broadcastConnectionsChanged({ connectionId: key, reason: 'removed' })
 
   return { ok: true, registry: sanitizeConnectionsRegistry(registry) }
@@ -16139,6 +16022,10 @@ ipcMain.handle('hermes:connection-config:save', async (_event, payload) => {
   assertCanMutateManagedPrimaryRouting()
   const config = coerceDesktopConnectionConfig(payload)
   writeDesktopConnectionConfig(config)
+
+  if (!payload?.profile) {
+    writeDesktopConnectionsRegistry(reconcileAppliedGlobalConnection(readDesktopConnectionsRegistry(), config))
+  }
 
   return sanitizeDesktopConnectionConfig(config, payload?.profile)
 })
@@ -17916,6 +17803,7 @@ async function runDesktopUninstall(mode) {
 
 ipcMain.handle('hermes:uninstall:summary', async () => getUninstallSummary())
 ipcMain.handle('hermes:uninstall:run', async (_event, payload) => {
+  rejectLocalRuntime()
   const mode = payload && typeof payload === 'object' ? payload.mode : payload
 
   return runDesktopUninstall(String(mode || ''))

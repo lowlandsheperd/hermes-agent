@@ -134,10 +134,9 @@ export const en: Translations = {
       back: 'Back',
       openLogs: 'Open logs',
       repairHint: 'Repair re-runs the installer and can take a few minutes on a fresh machine.',
-      remoteSignInHint: signInLabel =>
-        `Signs out of the saved remote browser session, then opens ${signInLabel}. Use local gateway to switch to the bundled backend instead.`,
+      remoteSignInHint: (_signInLabel: string) => 'Sign out of the saved session and sign in again.',
       signOutAndSignIn: 'Sign out & sign in',
-      remoteFailureHint: 'Check the gateway URL and sign-in under Gateway settings, or switch to the local gateway.',
+      remoteFailureHint: 'Check the server address, SSH settings, and authentication, then reconnect.',
       cloudDownTitle: 'Nous Cloud agent is down',
       cloudDownDescription:
         'The Nous-managed cloud agent this gateway connects to is returning a server error. It cannot be restarted from here — check its status, switch to the local gateway, or get support.',
@@ -807,7 +806,7 @@ export const en: Translations = {
     // v2 multi-connection registry: Settings → Gateways.
     connections: {
       title: 'Registered gateways',
-      intro: 'Manage this device and every Hermes gateway it can reach through remote, SSH, or Cloud connections.',
+      intro: 'Manage your URL and SSH server connections.',
       stagedNote:
         'Switch gateways from Sessions. Profiles, chats, messaging, and cron jobs stay with their gateway; work on other gateways keeps running.',
       launchModeTitle: 'At startup, return to Sessions on the last-used gateway',
@@ -892,7 +891,7 @@ export const en: Translations = {
       title: 'Gateway Connection',
       envOverride: 'env override',
       intro:
-        'Local by default. Use remote when this app should drive a Hermes backend elsewhere. Gateway connections are machine-level; profiles are discovered from the gateways you connect.',
+        'Connect to an existing Hermes server using its URL or SSH. Profiles are discovered from the connected server.',
       envOverrideTitle: 'Environment variables are controlling this desktop session.',
       envOverrideDesc:
         'Unset HERMES_DESKTOP_REMOTE_URL and HERMES_DESKTOP_REMOTE_TOKEN to use the saved setting below.',

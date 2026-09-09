@@ -17,7 +17,7 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
   translucencySupported: translucencySupport?.translucency === true,
   // Launch-flag fact: the app was started with --local, so the renderer may
   // show the local-models surfaces. Static for the window's lifetime.
-  localModelsEnabled: launchFlags?.localModels === true,
+  localModelsEnabled: false,
   getConnection: (profile, opts) => ipcRenderer.invoke('hermes:connection', profile, opts),
   // Registry-scoped backend resolution: { connectionId, profile } → descriptor.
   getConnectionFor: payload => ipcRenderer.invoke('hermes:connection:for', payload),

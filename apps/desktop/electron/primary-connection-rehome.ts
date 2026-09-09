@@ -19,7 +19,7 @@ export async function rehomePrimaryConnection({
 }: PrimaryConnectionRehomeOptions): Promise<{ resumedFirstRunRemote: boolean }> {
   let resumedFirstRunRemote = false
 
-  if (mode === 'remote') {
+  if (mode === 'remote' || mode === 'ssh') {
     resumedFirstRunRemote = resumeFirstRunRemote()
     clearLocalBootstrapFailure()
   }
