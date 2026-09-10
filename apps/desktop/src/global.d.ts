@@ -141,6 +141,10 @@ declare global {
       // shortcut registration + the persisted preference (it must restore the
       // shortcut on a cold launch without the renderer visiting Settings), so
       // the renderer reads/writes it here and adopts the authoritative reply.
+      tray: {
+        getSettings: () => Promise<{ closeToTray: boolean; available: boolean }>
+        setSettings: (enabled: boolean) => Promise<{ closeToTray: boolean; available: boolean }>
+      }
       quickEntry: {
         getSettings: () => Promise<QuickEntryStatus>
         // Returns the resulting state — including `registered: false` +

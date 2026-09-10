@@ -1,3 +1,5 @@
+import { DesktopTray } from './desktop-tray'
+
 import { execFileSync, spawn } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
@@ -14456,6 +14458,8 @@ function closeQuickEntryWindow() {
   quickEntryWindow = null
 }
 
+let desktopTray: DesktopTray | undefined
+
 function createWindow() {
   const icon = getAppIconPath()
   const savedWindowState = readWindowState()
@@ -14486,6 +14490,12 @@ function createWindow() {
     // session-windows.ts and stream-throttle.ts.
     webPreferences: chatWindowWebPreferences(PRELOAD_PATH)
   })
+
+  desktopTray ??= new DesktopTray(() => {
+    if (!mainWindow || mainWindow.isDestroyed()) createWindow()
+    else focusWindow(mainWindow)
+  }, getAppIconPath)
+  desktopTray.attach(mainWindow)
 
   const createdMainWindow = mainWindow
 
@@ -18057,6 +18067,7 @@ app.on('before-quit', event => {
   if (heldQuitForActiveWork(event)) {
     return
   }
+  desktopTray?.beginQuit()
 
   // A detached remote updater can outlive this Electron process. Do not tear
   // down its SSH observer/restore transaction at the generic SSH shutdown

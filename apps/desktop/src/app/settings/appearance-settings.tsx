@@ -58,6 +58,8 @@ import { $marketplaceInstalls, isUserTheme, removeUserTheme } from '@/themes/use
 
 import { setHermesConfigCache, useHermesConfigRecord } from '../hooks/use-config-record'
 
+import { TraySetting } from './tray-setting'
+
 import { MODE_OPTIONS } from './constants'
 import { setNested } from './helpers'
 import { PetSettings } from './pet-settings'
@@ -809,6 +811,7 @@ export function AppearanceSettings() {
           />
 
           <ResumeLastSessionSetting />
+          <TraySetting />
 
           <ListRow
             action={

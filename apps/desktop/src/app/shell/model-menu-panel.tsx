@@ -1,3 +1,5 @@
+import { $explicitDraftReasoningEffort } from '@/store/session'
+
 import { useStore } from '@nanostores/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -135,6 +137,7 @@ export function ModelMenuPanel({
     if (touchesPrimary) {
       markComposerSelectionManual()
       setCurrentReasoningEffort(next)
+      if (!activeSessionId) $explicitDraftReasoningEffort.set(true)
     } else if (activeSessionId) {
       sessionTileDelegate()?.updateSession(activeSessionId, state => ({ ...state, reasoningEffort: next }))
     }

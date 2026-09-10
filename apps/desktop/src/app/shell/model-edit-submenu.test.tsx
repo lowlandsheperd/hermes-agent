@@ -24,6 +24,8 @@ afterEach(() => {
 
 // Render the submenu inside an open menu/sub so its content (switches) mounts.
 function renderSubmenu(opts: {
+  allowedEfforts?: string[]
+  canDisableReasoning?: boolean
   defaultEffort?: string
   effort?: string
   fastControl: FastControl
@@ -38,6 +40,8 @@ function renderSubmenu(opts: {
         <DropdownMenuSub open>
           <DropdownMenuSubTrigger>edit</DropdownMenuSubTrigger>
           <ModelEditSubmenu
+            allowedEfforts={opts.allowedEfforts}
+            canDisableReasoning={opts.canDisableReasoning}
             defaultEffort={opts.defaultEffort ?? 'medium'}
             effort={opts.effort ?? 'medium'}
             fastControl={opts.fastControl}
@@ -128,4 +132,35 @@ describe('ModelEditSubmenu reports edits without performing them', () => {
 
     expect(onSelectModel).toHaveBeenCalledWith('m1-fast')
   })
+})
+
+it('only renders provider-allowed levels and hides an unsupported disable toggle', () => {
+  const onSetOptions = vi.fn()
+  renderSubmenu({
+    allowedEfforts: ['low', 'medium'],
+    canDisableReasoning: false,
+    fastControl: { kind: 'none' },
+    onSetOptions,
+    reasoning: true
+  })
+  const choices = screen.getAllByRole('menuitemradio')
+  expect(choices).toHaveLength(2)
+  expect(choices.map(item => item.getAttribute('data-state'))).toEqual(['unchecked', 'checked'])
+  expect(screen.queryByRole('switch')).toBeNull()
+  fireEvent.click(choices[0]!)
+  expect(onSetOptions).toHaveBeenCalledWith({ effort: 'low' })
+})
+
+it('can display a new server-provided level without a client enum update', () => {
+  const onSetOptions = vi.fn()
+  renderSubmenu({
+    allowedEfforts: ['adaptive'],
+    defaultEffort: 'adaptive',
+    effort: 'adaptive',
+    canDisableReasoning: false,
+    fastControl: { kind: 'none' },
+    onSetOptions,
+    reasoning: true
+  })
+  expect(screen.getByRole('menuitemradio', { name: 'adaptive' }).getAttribute('data-state')).toBe('checked')
 })

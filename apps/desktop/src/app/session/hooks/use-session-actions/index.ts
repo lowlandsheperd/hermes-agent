@@ -1,3 +1,6 @@
+import { $explicitDraftReasoningEffort } from '@/store/session'
+
+import { constrainReasoningEffort } from '@/lib/reasoning-effort'
 import { useStore } from '@nanostores/react'
 import { type MutableRefObject, useCallback, useEffect, useRef } from 'react'
 import type { NavigateFunction } from 'react-router'
@@ -32,6 +35,7 @@ import {
   openGatewayForAgent,
   openGatewayForProfile,
   requestGatewayForAgent,
+  requestGatewayForProfile,
   retainGatewayForAgent
 } from '@/store/gateway'
 import { $gatewaySwitching } from '@/store/gateway-switch'
@@ -303,6 +307,7 @@ async function desktopSessionCreateParams(
 
   const selection = {
     effort: $currentReasoningEffort.get().trim(),
+    explicitEffort: $explicitDraftReasoningEffort.get(),
     fast: $currentFastMode.get(),
     model: isManualSelection ? $currentModel.get().trim() : '',
     provider: isManualSelection ? $currentProvider.get().trim() : ''
@@ -314,6 +319,28 @@ async function desktopSessionCreateParams(
     await ensureGatewayAgent(capturedRoute.connectionId, profile)
   } else {
     await ensureGatewayProfile(profile)
+  }
+
+  const policyParams = {
+    key: 'reasoning',
+    ...(profile ? { profile: capturedRoute?.targetProfile || profile } : {}),
+    ...(selection.provider ? { provider: selection.provider } : {}),
+    ...(selection.model ? { model: selection.model } : {})
+  }
+  type ReasoningPolicy = { reasoning_efforts?: string[]; default_effort?: string }
+  const policy = capturedRoute
+    ? await requestGatewayForAgent<ReasoningPolicy>(
+        capturedRoute.connectionId,
+        capturedRoute.profile,
+        'config.get',
+        policyParams
+      )
+    : await requestGatewayForProfile<ReasoningPolicy>(profile, 'config.get', policyParams)
+  if (policy?.default_effort && !selection.explicitEffort) {
+    selection.effort = policy.default_effort
+  }
+  if (policy?.reasoning_efforts) {
+    selection.effort = constrainReasoningEffort(selection.effort, policy.default_effort || '', policy.reasoning_efforts)
   }
 
   return {

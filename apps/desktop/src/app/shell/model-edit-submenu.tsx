@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Switch } from '@/components/ui/switch'
 import { useI18n } from '@/i18n'
-import { isThinkingEnabled, REASONING_EFFORTS, resolveReasoningEffort } from '@/lib/reasoning-effort'
+import { isReasoningEffort, isThinkingEnabled, REASONING_EFFORTS, resolveReasoningEffort } from '@/lib/reasoning-effort'
 
 // Hermes' real reasoning levels live in lib/reasoning-effort; `none` is owned
 // by the Thinking toggle, not the radio.
@@ -59,6 +59,7 @@ export function resolveFastControl(
 }
 
 interface ModelEditSubmenuProps {
+  allowedEfforts?: readonly string[]
   /** Whether this model can turn thinking off. False on reasoning-mandatory
    *  routes, whose upstream rejects a disable — the toggle is hidden rather
    *  than offered as a control that silently does nothing. */
@@ -102,6 +103,7 @@ export function ModelEditSubmenu(props: ModelEditSubmenuProps) {
 }
 
 function ModelEditSubmenuBody({
+  allowedEfforts,
   canDisableReasoning,
   defaultEffort,
   effort,
@@ -114,7 +116,12 @@ function ModelEditSubmenuBody({
   const { t } = useI18n()
   const copy = t.shell.modelOptions
 
-  const effortValue = resolveReasoningEffort(effort, defaultEffort)
+  const selectedEffort = effort || defaultEffort
+  const effortValue = allowedEfforts
+    ? selectedEffort === 'none'
+      ? ''
+      : selectedEffort
+    : resolveReasoningEffort(effort, defaultEffort)
   const thinkingOn = isThinkingEnabled(effort, defaultEffort)
   const showThinkingToggle = reasoning && canDisableReasoning !== false
 
@@ -167,16 +174,18 @@ function ModelEditSubmenuBody({
           <DropdownMenuSeparator className="mx-0" />
           <DropdownMenuLabel className={dropdownMenuSectionLabel}>{copy.effort}</DropdownMenuLabel>
           <DropdownMenuRadioGroup onValueChange={value => onSetOptions({ effort: value })} value={effortValue}>
-            {REASONING_EFFORTS.map(value => (
-              <DropdownMenuRadioItem
-                className={dropdownMenuRow}
-                key={value}
-                onSelect={event => event.preventDefault()}
-                value={value}
-              >
-                {copy[value]}
-              </DropdownMenuRadioItem>
-            ))}
+            {(allowedEfforts ?? REASONING_EFFORTS)
+              .filter(value => value !== 'none')
+              .map(value => (
+                <DropdownMenuRadioItem
+                  className={dropdownMenuRow}
+                  key={value}
+                  onSelect={event => event.preventDefault()}
+                  value={value}
+                >
+                  {isReasoningEffort(value) ? copy[value] : value}
+                </DropdownMenuRadioItem>
+              ))}
           </DropdownMenuRadioGroup>
         </>
       ) : null}

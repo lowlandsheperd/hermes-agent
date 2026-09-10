@@ -52,3 +52,10 @@ export function resolveReasoningEffort(effort: string, fallback: string = DEFAUL
 
   return isReasoningEffort(value) ? value : DEFAULT_REASONING_EFFORT
 }
+
+/** Resolve stale presets against the provider's explicit policy. */
+export function constrainReasoningEffort(effort: string, fallback: string, allowed?: readonly string[]): string {
+  const value = effort || fallback || DEFAULT_REASONING_EFFORT
+  if (!allowed || allowed.includes(value)) return value
+  return allowed.includes(fallback) ? fallback : ''
+}

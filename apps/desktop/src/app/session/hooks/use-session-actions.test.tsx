@@ -35,6 +35,7 @@ import {
   $currentModel,
   $currentProvider,
   $currentReasoningEffort,
+  $explicitDraftReasoningEffort,
   $messages,
   $messagingSessions,
   $newChatWorkspaceTarget,
@@ -836,6 +837,30 @@ describe('createBackendSessionForSend profile routing', () => {
 
     expect(params).not.toHaveProperty('model')
     expect(params).toMatchObject({ reasoning_effort: 'high' })
+  })
+
+  it('uses the remote default instead of an old locally remembered level', async () => {
+    vi.mocked(requestGatewayForProfile).mockResolvedValueOnce({
+      default_effort: 'low',
+      reasoning_efforts: ['low', 'high']
+    })
+    const params = await createWith(() => {
+      $explicitDraftReasoningEffort.set(false)
+      setCurrentReasoningEffort('max')
+    })
+    expect(params).toMatchObject({ reasoning_effort: 'low' })
+  })
+
+  it('preserves an explicit allowed draft choice', async () => {
+    vi.mocked(requestGatewayForProfile).mockResolvedValueOnce({
+      default_effort: 'medium',
+      reasoning_efforts: ['low', 'medium']
+    })
+    const params = await createWith(() => {
+      setCurrentReasoningEffort('low')
+      $explicitDraftReasoningEffort.set(true)
+    })
+    expect(params).toMatchObject({ reasoning_effort: 'low' })
   })
 
   it('passes the current workspace cwd into session.create', async () => {

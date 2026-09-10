@@ -28,6 +28,7 @@ _RUNTIME_KEYS = ("model", "provider", "api_key", "base_url", "api_mode")
 def _snapshot_agent_model_runtime(agent) -> dict:
     """Capture the current agent model runtime for a one-turn restore."""
     return {**{k: getattr(agent, k, "") for k in _RUNTIME_KEYS},
+            "reasoning_config": copy.deepcopy(getattr(agent, "reasoning_config", None)),
             "primary_runtime": copy.deepcopy(getattr(agent, "_primary_runtime", None))}
 
 
@@ -42,6 +43,8 @@ def _restore_agent_model_runtime(agent, snapshot: dict | None) -> None:
             agent._fallback_activated = True
             agent._rate_limited_until = 0
             if agent._restore_primary_runtime():
+                if "reasoning_config" in snapshot:
+                    agent.reasoning_config = copy.deepcopy(snapshot["reasoning_config"])
                 return
         except Exception:
             logger.debug("TUI one-turn model restore via primary runtime failed", exc_info=True)
@@ -50,6 +53,8 @@ def _restore_agent_model_runtime(agent, snapshot: dict | None) -> None:
         agent.switch_model(
             new_model=model, new_provider=provider, api_key=api_key, base_url=base_url,
             api_mode=api_mode, capabilities=snapshot.get("capabilities"))
+        if "reasoning_config" in snapshot:
+            agent.reasoning_config = copy.deepcopy(snapshot["reasoning_config"])
 
 
 @contextlib.contextmanager
@@ -170,6 +175,9 @@ def _expensive_model_confirm(result, current_base_url: str, current_api_key) -> 
 
 def _commit_agent_switch(sid: str, session: dict, agent, result, current_model: str, snapshot):
     """Swap the live agent in place, then restart/persist/mark/announce; a failed swap aborts."""
+    from hermes_cli.provider_reasoning import constrained_reasoning
+    reasoning = constrained_reasoning(_load_cfg(), getattr(agent, "reasoning_config", None),
+                                     result.target_provider, result.new_model, result.base_url)
     try:
         agent.switch_model(
             new_model=result.new_model, new_provider=result.target_provider, api_key=result.api_key,
@@ -185,6 +193,9 @@ def _commit_agent_switch(sid: str, session: dict, agent, result, current_model: 
         logger.warning("In-place model switch failed for TUI agent: %s", exc)
         raise ValueError(f"Model switch to {result.new_model} failed ({exc}); "
                          f"staying on {getattr(agent, 'model', current_model)}.") from exc
+    agent.reasoning_config = reasoning
+    if snapshot is None and reasoning is not None:
+        session["create_reasoning_override"] = reasoning
     _restart_slash_worker(sid, session)
     _persist_live_session_runtime(session)
     _persist_live_session_system_prompt(session)

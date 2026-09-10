@@ -23,7 +23,7 @@ import { getLocalModelsStatus } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { modelOptionsQueryKey, requestModelOptions } from '@/lib/model-options'
 import { displayModelName, modelDisplayParts } from '@/lib/model-status-label'
-import { DEFAULT_REASONING_EFFORT, reasoningEffortLabel } from '@/lib/reasoning-effort'
+import { constrainReasoningEffort, DEFAULT_REASONING_EFFORT, reasoningEffortLabel } from '@/lib/reasoning-effort'
 import { foldIncludes, normalize } from '@/lib/text'
 import { useStoreSelector } from '@/lib/use-session-slice'
 import { cn } from '@/lib/utils'
@@ -305,7 +305,14 @@ export function ModelCatalogMenu({
 
     controller.applyPreset(
       {
-        effort: (caps?.reasoning ?? true) ? (preset.effort ?? defaultEffort) : undefined,
+        effort:
+          (caps?.reasoning ?? true)
+            ? constrainReasoningEffort(
+                (caps?.reasoning_efforts ? current.effort : preset.effort) ?? '',
+                caps?.default_reasoning_effort ?? defaultEffort,
+                caps?.reasoning_efforts
+              )
+            : undefined,
         fast: (caps?.fast ?? false) ? (preset.fast ?? false) : undefined
       },
       { model: family.id, provider: provider.slug }
@@ -513,7 +520,11 @@ export function ModelCatalogMenu({
                     // the active model, otherwise its remembered preset. Row
                     // label AND submenu read from these so they never disagree.
                     const preset = controller.presetFor(group.provider.slug, family.id)
-                    const effEffort = isCurrent ? current.effort : (preset.effort ?? '')
+                    const effEffort = constrainReasoningEffort(
+                      isCurrent ? current.effort : (preset.effort ?? ''),
+                      caps?.default_reasoning_effort ?? defaultEffort,
+                      caps?.reasoning_efforts
+                    )
                     const effFast = isCurrent ? current.fast : (preset.fast ?? false)
 
                     const fastControl: FastControl = resolveFastControl(
@@ -582,8 +593,9 @@ export function ModelCatalogMenu({
                           ) : null}
                         </DropdownMenuSubTrigger>
                         <ModelEditSubmenu
+                          allowedEfforts={caps?.reasoning_efforts}
                           canDisableReasoning={caps?.can_disable_reasoning}
-                          defaultEffort={defaultEffort}
+                          defaultEffort={caps?.default_reasoning_effort ?? defaultEffort}
                           effort={effEffort}
                           fastControl={fastControl}
                           isActive={isCurrent}

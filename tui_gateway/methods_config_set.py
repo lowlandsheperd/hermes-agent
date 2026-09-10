@@ -299,6 +299,11 @@ def _set_reasoning(rid, params, key, value, session):
     parsed = parse_reasoning_effort(arg)
     if parsed is None:
         return _err(rid, 4002, f"unknown reasoning value: {value}")
+    from hermes_cli.provider_reasoning import reasoning_policy
+    with _session_profile_runtime_scope(session or {}):
+        allowed, _default = reasoning_policy(_load_cfg(), None if scope == "global" else session)
+    if allowed is not None and arg not in allowed:
+        return _err(rid, 4002, f"reasoning effort {arg} not allowed; choose: {', '.join(allowed)}")
     if scope == "global" or session is None:
         _write_config_key("agent.reasoning_effort", arg)
         if session is not None:

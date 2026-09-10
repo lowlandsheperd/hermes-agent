@@ -307,7 +307,19 @@ def _(rid, params: dict) -> dict:
     _enable_gateway_prompts()
     # ``profile`` (app-global remote mode): stored so the build and every turn re-bind HERMES_HOME.
     profile_home = _profile_home(profile := (params.get("profile") or "").strip() or None)
+    from hermes_cli.provider_reasoning import reasoning_policy
+    from hermes_constants import parse_reasoning_effort
+    with _profile_build_scope(profile_home):
+        try:
+            allowed, default = reasoning_policy(_load_cfg(), provider=_str_param(params, "provider"), model=_str_param(params, "model"))
+        except ValueError as exc:
+            return _err(rid, 4002, str(exc))
+    effort = _str_param(params, "reasoning_effort")
+    if allowed is not None and effort and effort not in allowed:
+        return _err(rid, 4002, f"reasoning effort {effort} not allowed; choose: {', '.join(allowed)}")
     session_model_override, create_reasoning_override, create_service_tier_override = _create_overrides(params)
+    if not effort:
+        create_reasoning_override = parse_reasoning_effort(default)
     now = time.time()
     with _sessions_lock:
         _sessions[sid] = {

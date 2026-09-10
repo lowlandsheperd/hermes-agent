@@ -1,5 +1,7 @@
+import { I18nProvider } from '@/i18n/context'
+import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render as renderBase, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -575,3 +577,11 @@ describe('ModelMenuPanel refresh reconcile × guarded-switch confirm handshake',
     expect(notifyError).not.toHaveBeenCalled()
   })
 })
+
+function render(ui: ReactNode) {
+  return renderBase(
+    <I18nProvider initialLocale="en" configClient={null}>
+      {ui}
+    </I18nProvider>
+  )
+}

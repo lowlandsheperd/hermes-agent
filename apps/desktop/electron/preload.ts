@@ -145,6 +145,10 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
   // shortcut + the persisted preference; the quick window only captures text
   // and hands it back, and the primary renderer submits it through the normal
   // prompt path.
+  tray: {
+    getSettings: () => ipcRenderer.invoke('hermes:tray:get'),
+    setSettings: (enabled: boolean) => ipcRenderer.invoke('hermes:tray:set', enabled)
+  },
   quickEntry: {
     getSettings: () => ipcRenderer.invoke('hermes:quick-entry:settings:get'),
     setSettings: patch => ipcRenderer.invoke('hermes:quick-entry:settings:set', patch),

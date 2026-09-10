@@ -113,7 +113,7 @@ _CAMEL_ALIASES: Dict[str, str] = {
 _KNOWN_PROVIDER_KEYS = {
     # ``provider`` duplicates the ``providers.<name>`` mapping key and is unused here, but Hermes'
     # own config writer has historically emitted it. Accept it so self-written configs don't warn.
-    "provider",
+    "provider", "reasoning_efforts", "default_reasoning_effort", "provider_key",
     "name", "api", "url", "base_url", "api_key", "key_env", "api_key_env", "key_cmd",
     "api_mode", "transport", "model", "default_model", "models", "models_discovered",
     "context_length", "rate_limit_delay", "request_timeout_seconds", "stale_timeout_seconds",
@@ -190,7 +190,7 @@ def _normalize_custom_provider_entry(
     # from load_config_readonly()'s shared cache; mutating those violates its no-mutation contract
     # and leaks alias keys back into config.yaml on a later save_config(load_config()).
     entry = dict(entry)
-    provider_key = coerce_provider_id(provider_key)
+    provider_key = coerce_provider_id(provider_key or entry.get("provider_key"))
     # api_key_env is a documented snake_case alias for key_env (azure-foundry guide).
     if "api_key_env" in entry and "key_env" not in entry:
         entry["key_env"] = entry["api_key_env"]
@@ -245,6 +245,10 @@ def _normalize_custom_provider_entry(
     if entry.get("models_discovered") is True or discovered:
         normalized["models_discovered"] = True
 
+    for field in ("reasoning_efforts", "default_reasoning_effort"):
+        if field in entry:
+            normalized[field] = entry[field]
+
     capabilities = entry.get("capabilities")
     if isinstance(capabilities, dict):
         _put("capabilities", {
@@ -284,7 +288,7 @@ def _custom_provider_entry_to_provider_config(
     provider_entry: Dict[str, Any] = {"api": normalized["base_url"]}
     for field in (
         "name", "api_key", "key_env", "key_cmd", "models", "models_discovered", "context_length",
-        "rate_limit_delay", "discover_models", "extra_body", "extra_headers",
+        "rate_limit_delay", "discover_models", "extra_body", "extra_headers", "reasoning_efforts", "default_reasoning_effort",
         "ssl_ca_cert", "ssl_verify"):
         if field in normalized:
             provider_entry[field] = normalized[field]

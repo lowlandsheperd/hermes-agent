@@ -151,9 +151,9 @@ def _cfg_get_personality(params):
 def _cfg_get_reasoning(params):
     cfg = _load_cfg()
     session = _sessions.get(params.get("session_id", "")) or {}
-    reasoning_config = session.get("create_reasoning_override")
-    if session and not isinstance(reasoning_config, dict):
-        reasoning_config = getattr(session.get("agent"), "reasoning_config", None)
+    reasoning_config = getattr(session.get("agent"), "reasoning_config", None)
+    if not isinstance(reasoning_config, dict):
+        reasoning_config = session.get("create_reasoning_override")
     if isinstance(reasoning_config, dict):
         enabled = reasoning_config.get("enabled") is not False
         effort = str(reasoning_config.get("effort") or "medium") if enabled else "none"
@@ -162,7 +162,11 @@ def _cfg_get_reasoning(params):
         # YAML `reasoning_effort: false` means thinking disabled, not "unset".
         effort = "none" if raw_effort is False else str(raw_effort or "medium")
     display = "show" if (cfg.get("display") or {}).get("show_reasoning", True) else "hide"
-    return {"value": effort, "display": display}
+    from hermes_cli.provider_reasoning import reasoning_policy
+    with _session_profile_runtime_scope(session):
+        allowed, default = reasoning_policy(_load_cfg(), session, params.get("provider", ""), params.get("model", ""))
+    return {"value": effort if session else default, "display": display, "default_effort": default,
+            **({"reasoning_efforts": allowed} if allowed is not None else {})}
 
 
 def _cfg_get_fast(params):

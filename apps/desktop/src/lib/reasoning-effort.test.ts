@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  constrainReasoningEffort,
   DEFAULT_REASONING_EFFORT,
   isReasoningEffort,
   isThinkingEnabled,
@@ -50,4 +51,10 @@ describe('reasoning-effort', () => {
     expect(resolveReasoningEffort('none')).toBe('')
     expect(resolveReasoningEffort('bogus')).toBe(DEFAULT_REASONING_EFFORT)
   })
+})
+
+it('uses the server default to replace a disallowed preset, regardless of list order', () => {
+  expect(constrainReasoningEffort('max', 'low', ['high', 'low'])).toBe('low')
+  expect(constrainReasoningEffort('', 'high', ['low', 'high'])).toBe('high')
+  expect(constrainReasoningEffort('low', 'high', ['low', 'high'])).toBe('low')
 })

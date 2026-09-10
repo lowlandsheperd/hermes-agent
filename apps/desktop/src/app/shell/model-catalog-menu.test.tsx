@@ -1,5 +1,7 @@
+import { I18nProvider } from '@/i18n/context'
+import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render as renderBase, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DropdownMenu, DropdownMenuContent } from '@/components/ui/dropdown-menu'
@@ -207,3 +209,11 @@ describe('in-flight local downloads', () => {
     expect(screen.queryByText('Local')).toBeNull()
   })
 })
+
+function render(ui: ReactNode) {
+  return renderBase(
+    <I18nProvider initialLocale="en" configClient={null}>
+      {ui}
+    </I18nProvider>
+  )
+}

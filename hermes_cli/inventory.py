@@ -23,6 +23,7 @@ class ConfigContext:
     user_providers: dict
     custom_providers: list
     excluded_providers: list = None
+    reasoning_config: dict = None
 
     def with_overrides(
         self, *, current_provider: Optional[str] = None, current_model: Optional[str] = None,
@@ -57,6 +58,7 @@ def load_picker_context() -> ConfigContext:
         user_providers=stringify_provider_map(cfg.get("providers")),
         custom_providers=get_compatible_custom_providers(cfg),
         excluded_providers=excluded if isinstance(excluded, list) else [],
+        reasoning_config={"agent": cfg.get("agent", {}), "model": cfg.get("model", {})},
     )
 
 
@@ -140,7 +142,7 @@ def build_models_payload(
     if pricing:
         _apply_pricing(rows, force_fresh_nous_tier=force_fresh_nous_tier, cached_only=pricing_cache_only)
     if capabilities:
-        _apply_capabilities(rows)
+        _apply_capabilities(rows, ctx.custom_providers, ctx.reasoning_config)
     if featured:
         _apply_featured(rows)
     _apply_custom_aliases(rows)
@@ -269,7 +271,7 @@ def _reasoning_catalog_reader(slug: str):
     return read
 
 
-def _apply_capabilities(rows: list[dict]) -> None:
+def _apply_capabilities(rows: list[dict], custom_providers=None, reasoning_config=None) -> None:
     """Attach ``{model: {fast, reasoning, ...}}`` per row. ``reasoning`` defaults True when the catalog is
     silent (the dial is a no-op on models that ignore it; hiding it from a capable model is worse). A
     serving aggregator's detail overrides models.dev (adds ``can_disable_reasoning``). ``supported_efforts``
@@ -284,6 +286,8 @@ def _apply_capabilities(rows: list[dict]) -> None:
     for row in rows:
         slug = row.get("slug") or ""
         caps: dict[str, dict[str, Any]] = {}
+        from hermes_cli.provider_reasoning import allowed_efforts
+        efforts = allowed_efforts(custom_providers or [], slug)
         read_reasoning_catalog = _reasoning_catalog_reader(slug.lower())
 
         for model in row.get("models") or []:
@@ -310,6 +314,13 @@ def _apply_capabilities(rows: list[dict]) -> None:
                 elif detail:
                     entry["can_disable_reasoning"] = not detail.get("mandatory")
 
+            from hermes_cli.provider_reasoning import reasoning_policy
+            _, default = reasoning_policy({**(reasoning_config or {}), "custom_providers": custom_providers or []}, provider=slug, model=model)
+            entry["default_reasoning_effort"] = default
+            if efforts is not None:
+                entry["reasoning_efforts"] = efforts
+                entry["reasoning"] = any(e != "none" for e in efforts)
+                entry["can_disable_reasoning"] = "none" in efforts
             caps[model] = entry
 
         row["capabilities"] = caps

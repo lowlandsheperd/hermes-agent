@@ -1,3 +1,5 @@
+import { requestGatewayForAgent, requestGatewayForProfile } from '@/store/gateway'
+import { $activeGatewayProfile, $newChatProfile, resolveNewChatOwnerRoute } from '@/store/profile'
 import { type MutableRefObject, useCallback, useRef, useState } from 'react'
 
 import { setTerminalFontFamilyFromConfig } from '@/app/right-sidebar/terminal/terminal-font'
@@ -65,7 +67,20 @@ export function useHermesConfig({ activeSessionIdRef }: HermesConfigOptions) {
       const selectionGeneration = getComposerSelectionGeneration()
 
       try {
-        const [config, defaults] = await Promise.all([getHermesConfig(), getHermesConfigDefaults().catch(() => ({}))])
+        const route = resolveNewChatOwnerRoute()
+        const profile = route?.profile || $newChatProfile.get() || $activeGatewayProfile.get() || 'default'
+        type Policy = { default_effort?: string }
+        const policyRequest = route
+          ? requestGatewayForAgent<Policy>(route.connectionId, route.profile, 'config.get', {
+              key: 'reasoning',
+              profile: route.targetProfile || profile
+            })
+          : requestGatewayForProfile<Policy>(profile, 'config.get', { key: 'reasoning' })
+        const [config, defaults, policy] = await Promise.all([
+          getHermesConfig(),
+          getHermesConfigDefaults().catch(() => ({})),
+          policyRequest.catch(() => null)
+        ])
 
         const canPublish = () => profileRefreshEpochRef.current === profileRefreshEpoch && shouldPublish()
 
@@ -93,7 +108,7 @@ export function useHermesConfig({ activeSessionIdRef }: HermesConfigOptions) {
           ])
         ])
 
-        const reasoning = normalizeConfigEffort(config.agent?.reasoning_effort)
+        const reasoning = policy?.default_effort || normalizeConfigEffort(config.agent?.reasoning_effort)
         const tier = (config.agent?.service_tier ?? '').trim()
 
         // Publish the profile default regardless of whether the composer is

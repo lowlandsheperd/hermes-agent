@@ -1,3 +1,4 @@
+import { requestGatewayForProfile } from '@/store/gateway'
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -22,7 +23,8 @@ import { deferred } from '../../../test/deferred'
 
 import { useHermesConfig } from './use-hermes-config'
 
-vi.mock('@/hermes', () => ({
+vi.mock('@/hermes', async importOriginal => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   getHermesConfig: vi.fn(),
   getHermesConfigDefaults: vi.fn().mockResolvedValue({})
 }))
@@ -209,4 +211,25 @@ describe('useHermesConfig refreshHermesConfig', () => {
 
     expect($terminalFontFamily.get()).toBe('Hack Nerd Font')
   })
+})
+
+vi.mock('@/store/gateway', async importOriginal => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  requestGatewayForAgent: vi.fn(async () => ({})),
+  requestGatewayForProfile: vi.fn(async () => ({}))
+}))
+
+it('seeds the composer with the server-resolved provider default', async () => {
+  vi.mocked(getHermesConfig).mockResolvedValue({ agent: { reasoning_effort: 'medium' } } as never)
+  vi.mocked(requestGatewayForProfile).mockResolvedValueOnce({
+    default_effort: 'low',
+    reasoning_efforts: ['low', 'high']
+  })
+  setCurrentModelSource('default')
+  const { result } = renderHook(() => useHermesConfig({ activeSessionIdRef: { current: null } }))
+  await act(async () => {
+    await result.current.refreshHermesConfig(true)
+  })
+  expect($currentReasoningEffort.get()).toBe('low')
+  expect($defaultReasoningEffort.get()).toBe('low')
 })
